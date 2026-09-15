@@ -798,7 +798,7 @@ function enterStage(i,sLen){ stageI=i; const name=(A2P.stages||[])[i]; cutLog.pu
  try{ tunnel?.plungeStage?.(name,0.05) }catch(e){}
  if(!RM){ ripAmt=Math.max(ripAmt,0.02); if(flashEl){ flashEl.style.transition='none'; flashEl.style.opacity='0.35'; setTimeout(()=>{flashEl.style.transition='';flashEl.style.opacity='0'},60) } } }
 function landLine(){ let el=document.getElementById('landline'); if(!el){el=document.createElement('div');el.id='landline';el.className='mono ph';document.body.appendChild(el)} el.textContent=''; el.classList.remove('off'); setTimeout(()=>el.classList.add('off'),4200); return el }
-function finishAct2(){ if(act!==2)return; if(phase2!=='landing'){ act2Roll=0; act2Pitch=0; enterPhase('landing') } }   // SKIP jumps to the landing
+function finishAct2(){ if(act!==2)return; holdT=0; if(phase2!=='landing'){ act2Roll=0; act2Pitch=0; enterPhase('landing') } }   // SKIP jumps to the landing
 $('skip').addEventListener('click',()=>finishAct2()); isolate($('skip')); bk($('skip'),(ACT2&&ACT2.skip)||'SKIP');
 /* ---------- THE GAME: fly the robot through a thing to log it ---------- */
 const LOG_KEY='junk3d.logged.v1'; let loggedSet=new Set();
@@ -969,7 +969,8 @@ function physicsStep(dt,raw){
  if(invRun===1&&bootT-invAt>=8000){ invRun=2; lookAt=performance.now(); try{tunnel.setLook?.(null,1.2)}catch(e){} }
  if(act===2)act2Frame(raw);                                                       // the authored fall owns vT and the drift
  if((act===2&&phase2==='landing')||act===3||ended)levelRoll(raw);
- if(jump){ jump=Math.max(10,jump-dt); const left=(TOTAL_DEPTH+24)-cam;              // aim past the trigger so it fires, then the floor takes over
+ if(jump&&act===2){ jump=0; finishAct2() }                                          // the CONTACT jump crossed the hand-off: skip the authored fall, the landing brings the END
+ else if(jump){ jump=Math.max(10,jump-dt); const left=(HANDOFF_Z+24)-cam;             // aim past the hand-off so Act 2 starts, then the landing takes over
   vT=left>0?left/(2.4*jump):0; if(left<=0)jump=0 }
  v += (vT-v)*(1-Math.pow(1-(act===2?0.32:0.16),dt));      // Act 2 snaps to each void's speed
  if(Math.abs(v)<0.0006)v=0;
