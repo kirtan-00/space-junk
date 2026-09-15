@@ -45,6 +45,9 @@ canvas{position:fixed;left:0;top:0;width:100vw!important;height:100vh!important;
 /* the legend: one mono line, bracketed, chips light by inverse video; fades once and never returns */
 .keys{right:30px;bottom:34px;white-space:nowrap;transition:opacity 1.2s cubic-bezier(.32,.72,0,1)}
 .keys.gone,.keys.pre{opacity:0}
+.cap{left:50%;bottom:calc(112px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#eef6fa;white-space:nowrap;max-width:90vw;overflow:hidden;
+  transition:opacity .25s cubic-bezier(.32,.72,0,1)}
+.cap i{color:var(--acc)} .cap.off{opacity:0}
 .counter{left:50%;top:32px;transform:translateX(-50%);white-space:nowrap;transition:opacity 1.2s cubic-bezier(.32,.72,0,1)}
 .counter.idle{opacity:.4}
 .counter .flip{display:inline-block;animation:flip .12s cubic-bezier(.32,.72,0,1)}
@@ -214,6 +217,7 @@ body.inv #end .el,body.inv #end .name{color:var(--ink);text-shadow:none}
   <button class="p skip bk mono ph" id="skip" type="button" hidden></button>
   <button class="p snd bk mono ph" id="sndbtn" type="button"><i>[</i> <span id="sndt">SOUND</span> <i>]</i></button>
   <div id="toasts"></div>
+  <div class="p cap mono ph off" id="cap"><i>[</i> <span id="capt"></span> <i>]</i></div>
 </div>
 <div id="br"><i></i><i></i><i></i><i></i></div>
 <div id="insp"><div class="tv"><span class="tk a"></span><span class="tk b"></span><span class="tk c"></span><span class="tk d"></span>
@@ -432,7 +436,7 @@ function mkProp(pr,i){ if(!makeProp)return null; let P=null; try{ P=makeProp(THR
  const back=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({visible:false,transparent:true,opacity:0})); back.userData.o=o; grp.add(back);   // the prop draws its own halo; the page adds none
  Object.assign(o,{grp,front:hit,back}); grp.quaternion.copy(camera.quaternion); scene.add(grp); cards.push(o); hitMeshes.push(hit); return o }
 function buildCards(list){
- const cap=HANDOFF_Z-100;
+ const cap=HANDOFF_Z-270;                                                  // the hand-off title keeps its 260-unit run-up empty
  const segOf=j=>j.client?'lens':['clapper','cravache','deepdive-intro'].includes(j.slug)?'open':j.state==='classified'?'sealed':j.state==='dark'?'dark':'dev';
  const all=[];
  for(const j of list){const o=mkCard(j,true);o.seg=segOf(j);all.push(o)}
@@ -441,7 +445,7 @@ function buildCards(list){
    logo:'assets/logos/clients/'+c.slug+'.png',state:'client',live:true,client:true,playlist:typeof c.playlist==='string'&&c.playlist?c.playlist:null},true);
   o.seg='lens'; o.ringI=ringN++; all.push(o) });
  /* the opening two are pinned early and near, but off the straight line: nothing is logged without steering */
- const PIN={clapper:[26,-8,170],cravache:[-30,10,300]};
+ const PIN={clapper:[26,-8,430],cravache:[-30,10,520]};                    // the openers sit just past the opening title's empty stretch
  for(const o of all)o.pin=PIN[o.slug];
  /* z: every object inside its own band, spread evenly, 70 apart and 40 clear of any line; DEEPDIVE + THE BLOG stay a pair */
  for(const name of SEG_NAMES){ const S0=SEG[name]; if(!S0)continue; const grp=all.filter(o=>o.seg===name&&!o.pin).sort((a,b)=>(a.ringI??srand(a.slug,7)*10)-(b.ringI??srand(b.slug,7)*10));
@@ -450,9 +454,9 @@ function buildCards(list){
   const dd=grp.find(o=>o.slug==='deepdive'), db=grp.find(o=>o.slug==='deepdive-blog');
   for(let pass=0;pass<8;pass++){ if(dd&&db)db.zd=dd.zd+52;                                              // THE BLOG rides right behind DEEPDIVE through every pass
    grp.sort((a,b)=>a.zd-b.zd); let prev=z0-50;
-   for(const o of grp){ if(o.zd<prev+50)o.zd=prev+50; for(const lz of LINE_Z)if(Math.abs(o.zd-lz)<30)o.zd=lz+30; o.zd=Math.min(o.zd,z1); prev=o.zd } } }
+   for(const o of grp){ if(o.zd<prev+50)o.zd=prev+50; for(const tz of TITLE_Z)if(o.zd>tz-260&&o.zd<tz+200)o.zd=tz+200; o.zd=Math.min(Math.max(o.zd,z0),z1+200); prev=o.zd } } }
  for(const o of all)if(o.pin)o.zd=o.pin[2];
- for(let pass=0;pass<4;pass++){ all.sort((a,b)=>a.zd-b.zd); let prev=-1e9; for(const o of all){ if(!o.pin&&o.zd<prev+50)o.zd=prev+50; prev=o.zd } }
+ for(let pass=0;pass<4;pass++){ all.sort((a,b)=>a.zd-b.zd); let prev=-1e9; for(const o of all){ if(!o.pin){ if(o.zd<prev+50)o.zd=prev+50; for(const tz of TITLE_Z)if(o.zd>tz-260&&o.zd<tz+200)o.zd=tz+200 } prev=o.zd } }
  if(all.length&&all[all.length-1].zd>cap)console.warn('placement: the field runs past the handoff line by',Math.round(all[all.length-1].zd-cap),'units');
  { let gaps=[], prev=0; for(const o of [...all].sort((a,b)=>a.zd-b.zd)){ if(o.zd-prev>500)gaps.push(Math.round(prev)+'..'+Math.round(o.zd)); prev=o.zd } if(gaps.length&&DBG)console.log('corridors over 500 units:',gaps.join(' ')) }
  /* x/y: seeded, inside reach, apart from depth neighbours */
@@ -490,9 +494,11 @@ const LINE_SEG=(()=>{ let cur='open'; const lensI=LINES.findIndex(x=>x.lens); re
  if(cur==='open')cur='lens'; if(SEG_MARK.dev.test(T))cur='dev'; else if(SEG_MARK.sealed.test(T))cur='sealed'; else if(SEG_MARK.dark.test(T))cur='dark'; return cur }) })();
 const SEG_COUNT={open:0,lens:N_LENS,dev:0,sealed:0,dark:0};
 for(const p of PROJECTS){ const st=p.state==='classified'?'sealed':p.state==='dark'?'dark':'dev'; if(['clapper','cravache','deepdive-intro'].includes(p.slug))SEG_COUNT.open++; else SEG_COUNT[st]++ }
+const isTitleLine=d=>!!(d.title||d.lens);
 const SEG={}; const LINE_Z=[];
 (()=>{ let z=200; for(const name of SEG_NAMES){ const idx=LINES.map((d,i)=>i).filter(i=>LINE_SEG[i]===name&&LINES[i].text!==(ACT2&&ACT2.handoff));
-  const gap=name==='open'?OPEN_GAP:LINE_GAP, nL=idx.length, nO=SEG_COUNT[name]||0, len=Math.max(nL*gap, nO*OBJ_GAP+120, name==='lens'?LENS_LEN:0);
+  const nT=idx.filter(i=>isTitleLine(LINES[i])).length;                                            // each title keeps a 460-unit empty stretch
+  const gap=name==='open'?OPEN_GAP:LINE_GAP, nL=idx.length, nO=SEG_COUNT[name]||0, len=Math.max(nL*gap, nO*OBJ_GAP+120+nT*460+(name==='dark'?280:0), name==='lens'?LENS_LEN+200:0);
   idx.forEach((i,k)=>{ LINE_Z[i]=name==='lens'?z:z+k*gap }); SEG[name]={z0:z,z1:z+len}; z+=len }
  const hi=LINES.findIndex(d=>d.text===(ACT2&&ACT2.handoff)); if(hi>=0)LINE_Z[hi]=z; for(let i=0;i<LINES.length;i++)if(LINE_Z[i]==null)LINE_Z[i]=z; })();
 const LENS_Z0=LINE_Z[LINES.findIndex(d=>d.lens)];
@@ -520,9 +526,15 @@ function mkLine(text){const T=typeTex(text);
  const m=new THREE.Mesh(new THREE.PlaneGeometry(NARROW?200:420,NARROW?100:52.5),new THREE.MeshBasicMaterial({map:T.tex,transparent:true,depthWrite:false,opacity:0,fog:false}));
  /* the line's neon frame: 10% wider than the text, quiet, so the words stay the hero */
  m.visible=false; return m}
-const lines=LINES.map((d,i)=>{const m=mkLine(d.text);
- m.position.z=-LINE_Z[i];m.userData.z=-LINE_Z[i];scene.add(m);return m});
+/* only the three TITLES live in the world as huge type; every other DESCENT line is a caption on the CRT subtitle strip (DOM) */
+const isTitle=d=>!!(d.title||d.lens);
+const TITLE_Z=LINES.map((d,i)=>isTitle(d)?LINE_Z[i]:null).filter(z=>z!=null);
+const lines=LINES.filter(isTitle).map(d=>{const i=LINES.indexOf(d); const m=mkLine(d.text); m.position.z=-LINE_Z[i];m.userData.z=-LINE_Z[i];scene.add(m);return m});
 const allLines=lines.slice();                                            // Act 2 adds its own lines here
+const CAPS=LINES.map((d,i)=>isTitle(d)?null:{text:d.text,z:LINE_Z[i],crossed:false}).filter(Boolean);
+let capTimer=0, capAt=-1e9;
+function showCaption(text){ const el=$('cap'), t=$('capt'); el.classList.remove('off'); t.textContent=''; typeIntoFree(t,text); capAt=performance.now();
+ clearTimeout(capTimer); capTimer=setTimeout(()=>el.classList.add('off'),2600) }
 
 /* ---------- the bend: everything is placed in tunnel space (straight z); toWorld puts it on the curve when tunnel.js has one ---------- */
 const bendAxis=new THREE.Vector3(), bendTan=new THREE.Vector3(0,0,-1), bendRight=new THREE.Vector3(1,0,0), bendUp=new THREE.Vector3(0,1,0), UP=new THREE.Vector3(0,1,0);
@@ -551,7 +563,7 @@ function phase(z){const p=phaseFrac(z); let i=0; while(i<PHASE_STOPS.length-2&&p
    stand, framed knees up. Screen stays "static" (snow, NO SIGNAL) until a real photo arrives. Scrolling back up
    plays it in reverse. Every full-body call is optional. */
 const ROBOT_S=4.75, ROBOT_END_S=34, LEAD_END=NARROW?265:128, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
-const END_PELVIS_Y=-14;                                      // pelvis, world y: set top near the top third, knees at the bottom edge (about 70% of the height)
+const END_PELVIS_Y=-14, END_EYE=0.62;                        // END lens height above the pelvis, in figure scales: the set's centre                                      // pelvis, world y: set top near the top third, knees at the bottom edge (about 70% of the height)
 const ACCENT_END='#'+phase(END_STOP).getHexString();
 const robot=makeCRT(THREE,{accent:ACCENT_END,full:true});
 scene.add(robot.group);
@@ -1002,12 +1014,13 @@ function physicsStep(dt,raw){
   if(Math.abs(steer.x)<0.02)driftT.x*=Math.pow(0.985,dt); if(Math.abs(steer.y)<0.02)driftT.y*=Math.pow(0.985,dt) }
  /* the figure springs to the steering target; the camera position and the look target follow him through critically damped springs (6/s and 9/s),
     the look target leading him in the steering direction so turns read ahead */
- if(ended||endP>0){ const k=endP*endP*(3-2*endP); let ey=ROBOT_END_Y; try{ const fy=tunnel?.landingY?.(); if(typeof fy==='number'&&isFinite(fy))ey=fy+0.95*ROBOT_END_S }catch(e){}
-  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-k)+ey*k) } else robotT.set(driftT.x,driftT.y+ROBOT_LOW);
+ let endPelvis=ROBOT_END_Y;
+ if(ended||endP>0){ const k=endP*endP*(3-2*endP); try{ const fy=tunnel?.landingY?.(); if(typeof fy==='number'&&isFinite(fy))endPelvis=fy+0.95*ROBOT_END_S }catch(e){}
+  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-k)+endPelvis*k) } else robotT.set(driftT.x,driftT.y+ROBOT_LOW);
  robotV.x += (robotT.x-robotP.x)*0.0156*dt; robotV.y += (robotT.y-robotP.y)*0.0156*dt;
  robotV.multiplyScalar(Math.pow(0.86,dt)); robotP.addScaledVector(robotV,dt);
  const cd=critSpring;
- if(ended||endP>0){ const k=endP*endP*(3-2*endP); camGoal.set(driftT.x*(1-k),robotP.y*(1-k)+(ROBOT_END_Y-8)*k); lookGoal.set(robotP.x*(1-k),robotP.y*(1-k)+(ROBOT_END_Y+21)*k) }   // lens at knee height, looking up at him; the head clears the name block
+ if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S; camGoal.set(driftT.x*(1-k),robotP.y*(1-k)+eye*k); lookGoal.set(robotP.x*(1-k),robotP.y*(1-k)+eye*k) }   // lens at his eye line, level, straight at the screen (owner: no low angle)
  else { camGoal.set(robotP.x,robotP.y+3); lookGoal.set(robotP.x+steer.x*12,robotP.y-2+steer.y*8) }   // behind and a little above him, looking a touch below his line
  cd(drift,driftV,camGoal,6,hsec); cd(lookP,lookV,lookGoal,9,hsec);
  /* bank: he rolls into lateral moves (22 degrees at most) and pitches on vertical ones; the camera takes a third of the roll */
@@ -1102,7 +1115,7 @@ function frame(now){
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
  if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,phaseT:+phaseT.toFixed(1),stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
-  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
+  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }
 
  /* particles: stretch with speed, recycle, energy budget */
@@ -1184,6 +1197,9 @@ function frame(now){
   if(m.userData.snap){ m.userData.snapK=(m.userData.snapK==null?1.4:m.userData.snapK)+(1-(m.userData.snapK==null?1.4:m.userData.snapK))*(1-Math.pow(0.82,dt)) }   // Act 2 text arrives with a snap, 1.4 to 1
   const sk=m.userData.snapK||1; m.scale.set((1-0.5*Math.min(1,sp*1.15))*sk,sk,1); m.quaternion.copy(camera.quaternion); }
 
+ /* captions: typed on the strip as the camera passes each line's depth, forward or back; one at a time */
+ if(act===1&&!ended){ for(const c of CAPS){ const past=cam>=c.z; if(past!==c.crossed){ c.crossed=past; showCaption(c.text) } } }
+ else if(!$('cap').classList.contains('off'))$('cap').classList.add('off');
  /* bracket: sized to the logo's own aspect, with a little air around it */
  const br=$('br');
  if(hoverO&&!insp){tmpV.copy(hoverO.grp.position).project(camera);

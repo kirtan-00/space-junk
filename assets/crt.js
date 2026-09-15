@@ -8,8 +8,9 @@
                              setThrust, setSuitTint, setPointer, joints, full }
      opts.accent  hex string, tints the lit indicator, the roll bar and the glow. Default '#3fe9ff'.
      opts.full    full body (default false: chest-up).
-     opts.suit    "dark" (default): charcoal knit, near-black trousers, dark sneakers with a
-                  light sole line. "light" gives the pale grey knit of the reference.
+     opts.suit    "dark" (default): charcoal suit. "light": the white astronaut. One material
+                  with a rubbery sheen, segmented tubes with ball joints, mitts with a cuff
+                  ring, block boots with a light sole line, a chest plate and a small pack.
 
    Geometry (units match junk3d):
      Set is 0.56 wide, 0.58 tall, cabinet 0.40 deep. Glass 0.45 x 0.42, aspect 1.08.
@@ -41,7 +42,7 @@
                   tumble suppressed. The slow drift on rig still sits on top.
      setScale(s)  scales group and rescales every light with it.
      setThrust({main,left,right,up,down,retro})  0..1 each, 90 ms one-pole. Full only.
-                  Mains fire from the sneaker soles, retro from the palms (children of the
+                  Mains fire from the base of the pack, retro from the mitts (children of the
                   elbows, so they follow the pose), left/right from the hips, up from the
                   hips downward, down from the shoulders upward.
      setSuitTint(hex|null)  light emissive tint on the knit and trousers.
@@ -76,34 +77,6 @@ function pickAccent(v) {
 }
 
 /* ---------- canvas textures ---------- */
-
-/* vertical knit ribs as a tangent-space normal map. Four ribs per tile, tiled many times around. */
-function ribNormal(THREE) {
-  const N = 128;
-  const c = document.createElement('canvas');
-  c.width = N; c.height = N;
-  const g = c.getContext('2d');
-  const img = g.createImageData(N, N);
-  const d = img.data;
-  for (let y = 0; y < N; y++) {
-    for (let x = 0; x < N; x++) {
-      /* height = rib profile along x, with a faint stitch wobble along y */
-      const ph = (x / N) * 4 * TAU;
-      const wob = 0.15 * Math.sin((y / N) * 12 * TAU + Math.sin(ph) * 0.5);
-      const dhdx = Math.cos(ph) * (4 * TAU / N) * (1 + wob);
-      const i = (y * N + x) * 4;
-      d[i] = 128 + Math.max(-127, Math.min(127, dhdx * 22));
-      d[i + 1] = 128 + Math.max(-40, Math.min(40, wob * 30));
-      d[i + 2] = 255;
-      d[i + 3] = 255;
-    }
-  }
-  g.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(14, 5);
-  return t;
-}
 
 /* the studio glyph: an arc over two crossed asterisk strokes, white on transparent */
 function glyphTexture(THREE) {
@@ -403,18 +376,19 @@ export function makeCRT(THREE, opts = {}) {
   const rubber = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.55, metalness: 0.0 });
   const cableMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.45, metalness: 0.1 });
   const dotOff = new THREE.MeshStandardMaterial({ color: 0x9a9aa0, roughness: 0.4, metalness: 0.2 });
-  const ribs = ribNormal(THREE);
-  const knitColor = new THREE.Color(darkKnit ? 0x1c1e24 : 0xcfc9c4);
+  /* one suit material with a slightly rubbery sheen. "light" is the white astronaut. */
+  const knitColor = new THREE.Color(darkKnit ? 0x1c1e24 : 0xecece6);
   const knit = new THREE.MeshStandardMaterial({
-    color: knitColor, roughness: darkKnit ? 0.85 : 0.9, metalness: 0.0,
-    normalMap: ribs, normalScale: darkKnit ? new THREE.Vector2(0.6, 0.3) : new THREE.Vector2(1.1, 0.5),
-    emissive: knitColor.clone(), emissiveIntensity: 0.04,
+    color: knitColor, roughness: darkKnit ? 0.55 : 0.6, metalness: 0.06,
+    emissive: knitColor.clone(), emissiveIntensity: 0.03,
   });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xd7b9a4, roughness: 0.75, metalness: 0.0 });
-  const trouser = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x0f1014 : 0x25252a, roughness: 0.85, metalness: 0.0 });
-  const sneaker = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x1a1b20 : 0xe6e4df, roughness: 0.6, metalness: 0.0 });
+  /* joints, mitts, boots: a shade apart from the suit so the segments read */
+  const jointMat = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x2a2c34 : 0xd4d1c9, roughness: 0.45, metalness: 0.1 });
+  const extremity = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x24262d : 0xd4d1c9, roughness: 0.5, metalness: 0.08 });
+  const trouser = knit;
   const sole = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x121316 : 0x1c1c1e, roughness: 0.7, metalness: 0.0 });
   const soleLine = new THREE.MeshStandardMaterial({ color: 0xd8d5cd, roughness: 0.5, metalness: 0.0 });
+  const plateMat = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x23252c : 0xe3e0d8, roughness: 0.5, metalness: 0.08 });
 
   /* ----- helpers ----- */
   const roundedRect = (x, y, w, h, r) => {
@@ -556,7 +530,7 @@ export function makeCRT(THREE, opts = {}) {
   light.position.set(0, GL_Y - 0.05, 0.42);
   head.add(light);
 
-  /* ----- body ----- */
+  /* ----- body: a suit of segmented tubes with ball joints, mitts, a chest plate and a pack ----- */
   const body = new THREE.Group();
   body.name = 'crt-body';
   body.position.y = full ? 0 : 0.01;   /* chest-up: set centre lands at y 0.96 */
@@ -565,7 +539,7 @@ export function makeCRT(THREE, opts = {}) {
   const pelvis = jointOf('pelvis', body, 0, 0, 0);
   const spine = jointOf('spine', pelvis, 0, 0.05, 0);
 
-  /* torso: a slim knit top, sloping shoulders into the turtleneck. Spine-local. */
+  /* torso: a smooth suit body, sloping shoulders into the collar. Spine-local. */
   const tProfile = [
     [0.170, -0.14], [0.172, 0.02], [0.180, 0.18], [0.195, 0.31], [0.212, 0.38],
     [0.220, 0.425], [0.212, 0.455], [0.180, 0.48], [0.135, 0.50], [0.105, 0.515],
@@ -575,89 +549,109 @@ export function makeCRT(THREE, opts = {}) {
   torso.scale.set(1.36, 1, 0.56);
   bulkPart(torso, 0.25, 0, 0.25);
   spine.add(torso);
-  /* high ribbed collar the set sits into */
+  /* chest plate: a soft rounded box on the front */
+  const plateShape = roundedRect(-0.15, -0.11, 0.30, 0.22, 0.05);
+  const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(plateShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3, curveSegments: 8 }), plateMat);
+  plate.position.set(0, 0.30, 0.105);
+  spine.add(plate);
+  bulkPart(plate, 0.25, 0.05, 0.25);
+  /* the collar the set sits into */
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.094, 0.14, 32, 1, true), knit);
   collar.position.set(0, 0.575, 0);
   spine.add(collar);
   bulkPart(collar, 0.15, 0, 0.15);
-  const collarTop = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.012, 8, 32), knit);
+  const collarTop = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.012, 8, 32), jointMat);
   collarTop.rotation.x = Math.PI / 2;
   collarTop.position.set(0, 0.645, 0);
   spine.add(collarTop);
-  /* the neck, a sliver of it shows between collar and set */
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.072, 0.14, 24), skin);
+  /* the neck, dark rubber, mostly hidden by the set */
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.066, 0.072, 0.14, 24), rubber);
   neck.position.set(0, 0.62, 0);
   spine.add(neck);
   bulkPart(neck, 0.15, 0, 0.15);
+
+  /* pack: a small block on the back, the mains come out of its base */
+  const packShape = roundedRect(-0.17, -0.16, 0.34, 0.32, 0.06);
+  const pack = new THREE.Mesh(new THREE.ExtrudeGeometry(packShape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 8 }), plateMat);
+  pack.position.set(0, 0.28, -0.22);
+  spine.add(pack);
+  bulkPart(pack, 0.25, 0.1, 0.25);
 
   /* the set: centre at spine-local 0.90 (world 0.95 full, 0.96 chest-up) */
   head.position.set(0, 0.90, 0.15);   /* forward, so the collar sits inside the cabinet behind the frame */
   spine.add(head);
   bulkPart(head, 0.2, 0.2, 0.2);
 
-  /* arms: shoulder, upper arm, elbow, forearm, hand */
+  /* limbs: a ball joint sphere a touch wider than the tube, then the tube */
   const hands = {};
   const handMeshes = [];
   const shoulderJoints = [];
+  const ball = (parent, r, y, gain) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), jointMat);
+    m.position.set(0, y, 0);
+    parent.add(m);
+    bulkPart(m, gain, gain, gain);
+    return m;
+  };
+  const tube = (parent, r, len, y, gain) => {
+    const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 16), knit);
+    m.position.set(0, y, 0);
+    parent.add(m);
+    bulkPart(m, gain, 0, gain);
+    return m;
+  };
   for (const sgn of [-1, 1]) {
     const side = sgn > 0 ? 'R' : 'L';
     const sh = jointOf('shoulder' + side, spine, sgn * 0.245, 0.44, 0);
     shoulderJoints.push([sh, sgn * 0.245]);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.058, 16, 12), knit);
-    cap.position.set(-sgn * 0.01, -0.02, 0);
-    sh.add(cap);
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.18, 6, 16), knit);
-    upper.position.set(0, -0.15, 0);
-    sh.add(upper);
-    bulkPart(upper, 0.35, 0, 0.35);
-    bulkPart(cap, 0.3, 0.3, 0.3);
+    ball(sh, 0.072, -0.01, 0.35);
+    tube(sh, 0.052, 0.17, -0.15, 0.35);
     const el = jointOf('elbow' + side, sh, 0, -0.30, 0);
-    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.047, 0.16, 6, 16), knit);
-    fore.position.set(0, -0.12, 0);
-    el.add(fore);
-    bulkPart(fore, 0.2, 0, 0.2);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), skin);
-    hand.scale.set(0.8, 1.25, 0.5);
-    hand.position.set(0, -0.27, 0.01);
-    el.add(hand);
+    ball(el, 0.062, 0, 0.3);
+    tube(el, 0.046, 0.14, -0.11, 0.2);
+    /* wrist cuff ring, then one rounded mitt */
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 8, 24), jointMat);
+    cuff.rotation.x = Math.PI / 2;
+    cuff.position.set(0, -0.215, 0);
+    el.add(cuff);
+    bulkPart(cuff, 0.2, 0.2, 0.2);
+    const mitt = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.05, 6, 16), extremity);
+    mitt.scale.set(1.0, 1.0, 0.8);
+    mitt.position.set(0, -0.275, 0.0);
+    el.add(mitt);
+    bulkPart(mitt, 0.3, 0.1, 0.3);
+    mitt.userData.sgn = sgn;
     hands[side] = el;
-    handMeshes.push(hand);
+    handMeshes.push(mitt);
   }
 
-  /* legs, trousers and sneakers. Full variant only. */
+  /* legs: hip ball, thigh tube, knee ball, shin tube, block boot. Full variant only. */
   const shoes = [];
   if (full) {
     for (const sgn of [-1, 1]) {
       const side = sgn > 0 ? 'R' : 'L';
       const hip = jointOf('hip' + side, pelvis, sgn * 0.10, -0.03, 0);
-      const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.076, 0.30, 6, 16), trouser);
-      thigh.position.set(0, -0.22, 0);
-      hip.add(thigh);
-      bulkPart(thigh, 0.35, 0, 0.35);
+      ball(hip, 0.095, -0.01, 0.35);
+      tube(hip, 0.072, 0.26, -0.22, 0.35);
       const kn = jointOf('knee' + side, hip, 0, -0.44, 0);
-      const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.060, 0.28, 6, 16), trouser);
-      shin.position.set(0, -0.20, 0);
-      kn.add(shin);
-      bulkPart(shin, 0.2, 0, 0.2);
-      const shoe = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.14, 6, 16), sneaker);
-      shoe.rotation.x = Math.PI / 2;
-      shoe.scale.set(1.3, 1, 1);
-      shoe.position.set(0, -0.43, 0.04);
-      kn.add(shoe);
-      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.25), sole);
-      soleM.position.set(0, -0.48, 0.04);
+      ball(kn, 0.08, 0, 0.3);
+      tube(kn, 0.058, 0.24, -0.20, 0.2);
+      /* boot: a rounded block with the sole line */
+      const bootShape = roundedRect(-0.075, -0.06, 0.15, 0.12, 0.035);
+      const boot = new THREE.Mesh(new THREE.ExtrudeGeometry(bootShape, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3, curveSegments: 6 }), extremity);
+      boot.position.set(0, -0.42, -0.07);
+      kn.add(boot);
+      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.26), sole);
+      soleM.position.set(0, -0.485, 0.045);
       kn.add(soleM);
-      /* a thin light line where the sole meets the upper */
-      const line = new THREE.Mesh(new THREE.BoxGeometry(0.146, 0.006, 0.256), soleLine);
-      line.position.set(0, -0.468, 0.04);
+      const line = new THREE.Mesh(new THREE.BoxGeometry(0.156, 0.006, 0.266), soleLine);
+      line.position.set(0, -0.473, 0.045);
       kn.add(line);
-      shoes.push(shoe, soleM, line);
-      bulkPart(shoe, 0.3, 0.1, 0.05); bulkPart(soleM, 0.3, 0, 0.05); bulkPart(line, 0.3, 0, 0.05);
+      shoes.push(boot, soleM, line);
+      bulkPart(boot, 0.3, 0.1, 0.05); bulkPart(soleM, 0.3, 0, 0.05); bulkPart(line, 0.3, 0, 0.05);
     }
-  }
-  /* a little hip block so the trousers meet the knit */
-  if (full) {
-    const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.06, 6, 20), trouser);
+    /* the hip block */
+    const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.06, 6, 20), knit);
     hips.scale.set(1.15, 1, 0.62);
     hips.position.set(0, -0.06, 0);
     pelvis.add(hips);
@@ -671,11 +665,8 @@ export function makeCRT(THREE, opts = {}) {
   const cableDefs = [
     /* [head-space start, spine-space end, sag, bulge x, bulge z] */
     [new THREE.Vector3(-SET_W / 2 - 0.02, 0.02, -0.14), collarEnd(-1.2, 0.10, 0.62), 0.30, -0.10, 0.05],
-    [new THREE.Vector3(-SET_W / 2 - 0.02, -0.01, -0.18), collarEnd(-0.7, 0.10, 0.61), 0.40, -0.14, 0.09],
-    [new THREE.Vector3(-SET_W / 2 - 0.02, -0.04, -0.12), collarEnd(-2.0, 0.10, 0.62), 0.34, -0.11, -0.08],
     [new THREE.Vector3(-SET_W / 2 - 0.02, -0.06, -0.16), collarEnd(-0.3, 0.10, 0.60), 0.48, -0.17, 0.12],
     [new THREE.Vector3(-SET_W / 2 - 0.02, 0.00, -0.20), collarEnd(-2.6, 0.10, 0.62), 0.24, -0.07, -0.14],
-    [new THREE.Vector3(SET_W / 2 - 0.10, -SET_H / 2 - 0.01, -0.10), collarEnd(0.8, 0.10, 0.61), 0.26, 0.09, 0.07],
     [new THREE.Vector3(SET_W / 2 - 0.08, -SET_H / 2 - 0.01, -0.13), collarEnd(1.6, 0.10, 0.62), 0.34, 0.14, -0.02],
   ];
   const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -796,10 +787,10 @@ export function makeCRT(THREE, opts = {}) {
     const F = new THREE.Vector3(0, 0, 1);
     const U = new THREE.Vector3(0, 1, 0), D = new THREE.Vector3(0, -1, 0);
     const Rt = new THREE.Vector3(1, 0, 0), Lf = new THREE.Vector3(-1, 0, 0);
-    /* mains from the sneaker soles, splayed 8 deg */
-    const SPLAY = 8 * D2R;
-    addPlume('main', J.kneeL, 0, -0.49, 0.02, new THREE.Vector3(-Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
-    addPlume('main', J.kneeR, 0, -0.49, 0.02, new THREE.Vector3(Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
+    const SPLAY = 6 * D2R;
+    /* mains out of the base of the pack, splayed so they clear the legs */
+    addPlume('main', spine, -0.09, 0.03, -0.25, new THREE.Vector3(-Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
+    addPlume('main', spine, 0.09, 0.03, -0.25, new THREE.Vector3(Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
     /* side puffers at the hips: left thrust fires from the right hip */
     addPlume('left', pelvis, 0.19, -0.05, 0, Rt, 0.3, 0.028);
     addPlume('right', pelvis, -0.19, -0.05, 0, Lf, 0.3, 0.028);
@@ -809,8 +800,8 @@ export function makeCRT(THREE, opts = {}) {
     addPlume('down', spine, -0.20, 0.47, -0.02, U, 0.3, 0.028);
     addPlume('down', spine, 0.20, 0.47, -0.02, U, 0.3, 0.028);
     /* retro: from the palms, forward, warmer. Children of the elbows so they follow the pose. */
-    addPlume('retro', hands.R, 0, -0.27, 0.04, F, 0.45, 0.032, { color: retroCol });
-    addPlume('retro', hands.L, 0, -0.27, 0.04, F, 0.45, 0.032, { color: retroCol });
+    addPlume('retro', hands.R, 0, -0.275, 0.045, F, 0.45, 0.032, { color: retroCol });
+    addPlume('retro', hands.L, 0, -0.275, 0.045, F, 0.45, 0.032, { color: retroCol });
   }
 
   /* ----- poses: joint rotation targets, Euler XYZ. Limbs hang along -y:
@@ -982,12 +973,12 @@ export function makeCRT(THREE, opts = {}) {
     v = v || {};
     for (const k in thrustT) thrustT[k] = Math.min(Math.max(+v[k] || 0, 0), 1);
   }
-  const tintMats = [knit, trouser];
+  const tintMats = [knit, plateMat, extremity];
   function setSuitTint(hex) {
     const ok = typeof hex === 'string' && /^#[0-9a-f]{3,8}$/i.test(hex);
     for (const m of tintMats) {
       if (ok) { m.emissive.set(hex); m.emissiveIntensity = 0.22; }
-      else if (m === knit) { m.emissive.copy(knitColor); m.emissiveIntensity = 0.04; }
+      else if (m === knit) { m.emissive.copy(knitColor); m.emissiveIntensity = 0.03; }
       else { m.emissive.set(0x000000); m.emissiveIntensity = 1; }
     }
   }
@@ -1108,9 +1099,8 @@ export function makeCRT(THREE, opts = {}) {
     }
     /* toes point in the dive, fingers spread in the brake */
     const toe = -0.55 * poseW.fall;
-    for (const m of shoes) m.rotation.x = Math.PI / 2 * (m.geometry.type === 'CapsuleGeometry' ? 1 : 0) + toe;
-    const spread = 1 + 0.15 * poseW.brake;
-    for (const m of handMeshes) m.scale.set(0.8 * spread, 1.25 * spread, 0.5);
+    for (const m of shoes) m.rotation.x = toe;
+    for (const m of handMeshes) m.rotation.z = m.userData.sgn * 0.28 * poseW.brake;
 
     /* body takes a quarter of the yaw, the head three quarters plus its own nod and drift */
     J.spine.rotation.y += (1 - HEAD_SHARE) * look.yaw;

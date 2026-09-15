@@ -6,7 +6,9 @@
 /* World-type, depth-ordered. `at` is a fraction of the full descent (0..1).
    The tunnel places each line once at its depth; nothing loops. */
 export const DESCENT = [
-  {at:0.00, text:"EVERYTHING I HAVE EVER MADE"},
+  /* `title:true` lines are the three chapter cards: huge world type in a stretch the layout keeps empty.
+     Everything else is a caption: typed into the CRT subtitle strip at the bottom, one at a time, never in the world. */
+  {at:0.00, text:"EVERYTHING I HAVE EVER MADE", title:true},
   {at:0.04, text:"IS STILL UP HERE"},
   {at:0.08, text:"SOME OF IT STILL WORKS"},
   {at:0.11, text:"HOLD SPACE TO SLOW DOWN"},
@@ -20,7 +22,7 @@ export const DESCENT = [
   {at:0.66, text:"THE DARK ONES ARE DEAD"},
   {at:0.70, text:"THEY TAUGHT ME THE MOST"},
   {at:0.76, text:"I NEVER PICKED A LANE"},
-  {at:0.80, text:"I PICKED A FALL"},
+  {at:0.80, text:"I PICKED A FALL", title:true},
   {at:0.90, text:"YOU ARE NEARLY AT THE BOTTOM"},
   {at:0.95, text:"I AM DOWN HERE"}
 ];
