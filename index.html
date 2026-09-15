@@ -128,13 +128,16 @@ body.endon .contact{pointer-events:none;opacity:.6}
 #end{position:fixed;inset:0;z-index:7;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
   padding:3.5vh 30px 2vh;text-align:center;opacity:0;transition:opacity .6s cubic-bezier(.32,.72,0,1),transform .6s cubic-bezier(.32,.72,0,1)}
 /* the figure stands in the middle fifth of the frame: words above the head, two columns either side of the body */
-#end .cols{display:grid;grid-template-columns:1fr 24vw 1fr;width:100%;margin-top:14vh;align-items:start}
+#end .cols{display:grid;grid-template-columns:1fr 36vw 1fr;width:100%;margin-top:14vh;align-items:start}
 #end .left{display:flex;flex-direction:column;align-items:flex-end;text-align:right;padding-right:2vw}
 #end .right{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding-left:2vw}
 #end .left .roles{margin-top:0;max-width:30vw}
 #end .right .cta{margin-top:0}
 #end .right .links{justify-content:flex-start;max-width:34vw}
 #end.on{opacity:1}
+#end::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(3,4,10,.15) 0%,rgba(3,4,10,.45) 100%)}   /* a soft dark scrim so white type reads on the bliss sky */
+#end .top,#end .cols{position:relative}
+#end .roles,#end .line,#end .cta,#end a.mail,#end .links a,#end .outro,#end .credit{text-shadow:0 1px 1px rgba(3,4,10,.9),0 0 6px rgba(3,4,10,.6)}
 #end.off{opacity:0;transform:translateY(-28px)}
 #end .top,#end .bot{display:flex;flex-direction:column;align-items:center}
 #end .el{font-family:Archivo,sans-serif;font-variation-settings:"wdth" 112,"wght" 800;font-size:clamp(18px,min(2.4vw,3.6vh),30px);line-height:1.08;color:#eef6fa;min-height:1.08em;
@@ -437,7 +440,7 @@ function mkProp(pr,i){ if(!makeProp)return null; let P=null; try{ P=makeProp(THR
  Object.assign(o,{grp,front:hit,back}); grp.quaternion.copy(camera.quaternion); scene.add(grp); cards.push(o); hitMeshes.push(hit); return o }
 function buildCards(list){
  const cap=HANDOFF_Z-270;                                                  // the hand-off title keeps its 260-unit run-up empty
- const segOf=j=>j.client?'lens':['clapper','cravache','deepdive-intro'].includes(j.slug)?'open':j.state==='classified'?'sealed':j.state==='dark'?'dark':'dev';
+ const segOf=j=>j.client?'lens':j.state==='classified'?'sealed':j.state==='dark'?'dark':'dev';   // OPEN holds no objects: title and captions only
  const all=[];
  for(const j of list){const o=mkCard(j,true);o.seg=segOf(j);all.push(o)}
  let ringN=0; ((PRODUCTION||[]).forEach((pr,i)=>{ const o=mkProp(pr,i); if(o){o.seg='lens';o.ringI=ringN++;all.push(o)} }));   // props first: dvc, reels, truck
@@ -445,11 +448,12 @@ function buildCards(list){
    logo:'assets/logos/clients/'+c.slug+'.png',state:'client',live:true,client:true,playlist:typeof c.playlist==='string'&&c.playlist?c.playlist:null},true);
   o.seg='lens'; o.ringI=ringN++; all.push(o) });
  /* the opening two are pinned early and near, but off the straight line: nothing is logged without steering */
- const PIN={clapper:[26,-8,430],cravache:[-30,10,520]};                    // the openers sit just past the opening title's empty stretch
- for(const o of all)o.pin=PIN[o.slug];
+ const PIN={}; for(const o of all)o.pin=null;                                 // no pinned openers: the media ring is the hook
+ const DEV_ORDER=['clapper','cravache','deepdive-intro','litpro','postinnator','sportified','deepdive','deepdive-blog','page-22'];
+ const devRank=o=>{const i=DEV_ORDER.indexOf(o.slug); return i>=0?i:DEV_ORDER.length+srand(o.slug,7)}
  /* z: every object inside its own band, spread evenly, 70 apart and 40 clear of any line; DEEPDIVE + THE BLOG stay a pair */
- for(const name of SEG_NAMES){ const S0=SEG[name]; if(!S0)continue; const grp=all.filter(o=>o.seg===name&&!o.pin).sort((a,b)=>(a.ringI??srand(a.slug,7)*10)-(b.ringI??srand(b.slug,7)*10));
-  const z0=S0.z0+60, z1=Math.min(S0.z1-40,cap); grp.forEach((o,i)=>{ o.zd=z0+(i+0.5)*(z1-z0)/grp.length+(srand(o.slug,5)-.5)*20 });
+ for(const name of SEG_NAMES){ const S0=SEG[name]; if(!S0)continue; const grp=all.filter(o=>o.seg===name&&!o.pin).sort((a,b)=>(name==='dev'?devRank(a):(a.ringI??srand(a.slug,7)*10))-(name==='dev'?devRank(b):(b.ringI??srand(b.slug,7)*10)));
+  const z0=S0.z0+(name==='dev'?200:60), z1=Math.min(S0.z1-(name==='lens'?300:40),cap); grp.forEach((o,i)=>{ o.zd=z0+(i+0.5)*(z1-z0)/grp.length+(srand(o.slug,5)-.5)*20 });   // dev starts past the TERMINAL title; the ring ends before its run-up
   for(const o of grp)if(o.prop&&o.depth>20)o.zd+=o.depth*0.5;                                          // the truck is deep: extra clearance in the ring
   const dd=grp.find(o=>o.slug==='deepdive'), db=grp.find(o=>o.slug==='deepdive-blog');
   for(let pass=0;pass<8;pass++){ if(dd&&db)db.zd=dd.zd+52;                                              // THE BLOG rides right behind DEEPDIVE through every pass
@@ -479,7 +483,7 @@ function buildCards(list){
 /* world-space type */
 /* one line legible at a time: at least LINE_GAP units between any two, fade in over the 120 units before, out over the 60 after.
    LENS_TITLE slots in right after the DESCENT line at LENS_AT and the ring hangs in the LENS_LEN units behind it. */
-const LINE_GAP=150, OPEN_GAP=120;                                        // descent-line pitch; the opening lines sit tighter so the first ring is near
+const LINE_GAP=150, OPEN_GAP=40;                                         // captions are DOM now: the opening ones can sit tight so the ring arrives early                                        // descent-line pitch; the opening lines sit tighter so the first ring is near
 const LINES=(()=>{const a=[],L={at:LENS_AT,text:LENS_TITLE,lens:true};let done=false,past=false;
  for(const d of DESCENT){ if(past)continue;                                            // nothing after the hand-off line: Act 2 carries its own words
   if(!done&&d.at>LENS_AT){a.push(L);done=true}a.push(d); if(ACT2&&d.text===ACT2.handoff)past=true } if(!done)a.push(L);return a})();
@@ -493,12 +497,13 @@ const SEG_MARK={dev:/TERMINAL/, sealed:/SEALED ONES/, dark:/DARK ONES/};
 const LINE_SEG=(()=>{ let cur='open'; const lensI=LINES.findIndex(x=>x.lens); return LINES.map((d,i)=>{ if(i<=lensI)return 'open'; const T=String(d.text||'').toUpperCase();
  if(cur==='open')cur='lens'; if(SEG_MARK.dev.test(T))cur='dev'; else if(SEG_MARK.sealed.test(T))cur='sealed'; else if(SEG_MARK.dark.test(T))cur='dark'; return cur }) })();
 const SEG_COUNT={open:0,lens:N_LENS,dev:0,sealed:0,dark:0};
-for(const p of PROJECTS){ const st=p.state==='classified'?'sealed':p.state==='dark'?'dark':'dev'; if(['clapper','cravache','deepdive-intro'].includes(p.slug))SEG_COUNT.open++; else SEG_COUNT[st]++ }
+for(const p of PROJECTS){ const st=p.state==='classified'?'sealed':p.state==='dark'?'dark':'dev'; SEG_COUNT[st]++ }
 const isTitleLine=d=>!!(d.title||d.lens);
 const SEG={}; const LINE_Z=[];
 (()=>{ let z=200; for(const name of SEG_NAMES){ const idx=LINES.map((d,i)=>i).filter(i=>LINE_SEG[i]===name&&LINES[i].text!==(ACT2&&ACT2.handoff));
   const nT=idx.filter(i=>isTitleLine(LINES[i])).length;                                            // each title keeps a 460-unit empty stretch
-  const gap=name==='open'?OPEN_GAP:LINE_GAP, nL=idx.length, nO=SEG_COUNT[name]||0, len=Math.max(nL*gap, nO*OBJ_GAP+120+nT*460+(name==='dark'?280:0), name==='lens'?LENS_LEN+200:0);
+  const gap=name==='open'?OPEN_GAP:LINE_GAP, nL=idx.length, nO=SEG_COUNT[name]||0;
+  const len=name==='open'?nL*gap+200 : Math.max(nL*gap, nO*OBJ_GAP+120+nT*460+(name==='dark'?280:0), name==='lens'?LENS_LEN+300:0);   // OPEN: the lines plus the LENS title's after-stretch; LENS: the ring plus the TERMINAL title's run-up
   idx.forEach((i,k)=>{ LINE_Z[i]=name==='lens'?z:z+k*gap }); SEG[name]={z0:z,z1:z+len}; z+=len }
  const hi=LINES.findIndex(d=>d.text===(ACT2&&ACT2.handoff)); if(hi>=0)LINE_Z[hi]=z; for(let i=0;i<LINES.length;i++)if(LINE_Z[i]==null)LINE_Z[i]=z; })();
 const LENS_Z0=LINE_Z[LINES.findIndex(d=>d.lens)];
@@ -562,7 +567,8 @@ function phase(z){const p=phaseFrac(z); let i=0; while(i<PHASE_STOPS.length-2&&p
    tube housing toward us. At the floor everything runs off endP (0..1): tuck, pull away, grow, turn to face us,
    stand, framed knees up. Screen stays "static" (snow, NO SIGNAL) until a real photo arrives. Scrolling back up
    plays it in reverse. Every full-body call is optional. */
-const ROBOT_S=4.75, ROBOT_END_S=34, LEAD_END=NARROW?265:128, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
+const LAND_S=10; let landS=4.75;                                  // the landing scale: about 45% of the frame at 40 units
+const ROBOT_S=4.75, ROBOT_END_S=44, LEAD_END=NARROW?265:128, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
 const END_PELVIS_Y=-14, END_EYE=0.62;                        // END lens height above the pelvis, in figure scales: the set's centre                                      // pelvis, world y: set top near the top third, knees at the bottom edge (about 70% of the height)
 const ACCENT_END='#'+phase(END_STOP).getHexString();
 const robot=makeCRT(THREE,{accent:ACCENT_END,full:true});
@@ -584,7 +590,7 @@ function scaleLights(lights,S){ const k=S*S*0.05; for(const L of lights){ if(L.i
 function setRobotScale(S){ if(S!==robotScale){robotScale=S;setFigScale(robot,robotLights,S)} }
 setRobotScale(ROBOT_S);
 /* END lights only: a cool rim from behind-left in the accent, a soft warm fill from front-right, so the white suit reads as a body */
-const rimL=new THREE.DirectionalLight(ACCENT_END,0), fillL=new THREE.PointLight(0xffd9b0,0,0,0), keyL=new THREE.PointLight(0xfff1dc,0,0,0);   // key: warm white from camera front-left so the charcoal suit reads as a body
+const rimL=new THREE.DirectionalLight(0xdfefff,0), fillL=new THREE.PointLight(0xffd9b0,0,0,0), keyL=new THREE.PointLight(0xfff4e6,0,0,0);   // cool rim, warm-white key: no accent on him at the END   // key: warm white from camera front-left so the charcoal suit reads as a body
 rimL.visible=false; fillL.visible=false; keyL.visible=false; scene.add(rimL,rimL.target,fillL,keyL);
 /* the chase fill: a directional light on the camera down the view direction, plus a soft accent point 6 behind and above it,
    so the white suit reads white from behind with a cool dome highlight. Both fade out during the END grow. */
@@ -637,8 +643,8 @@ let hoverO=null, insp=null, inspT=0, playing=false, mutedBefore=false;
 const robotP=new THREE.Vector2(), robotV=new THREE.Vector2(), robotT=new THREE.Vector2(), faceQ=new THREE.Quaternion(), invQ=new THREE.Quaternion(), faceM=new THREE.Matrix4(), faceW=new THREE.Quaternion();
 const END_WIN=3.2;                        // seconds: the END transition window, forward and back
 let endP=0, robotTurned=false, endShown=false, endTimers=[];
-let act=1, voidI=-1, phase2='', phaseT=0, act2T=0, act2Roll=0, act2Pitch=0, act2Yaw=0, stageI=-1, plungeFov=null, rollRate=0, a2From=0, a2To=0, a2Ramp=1, dealAt=-1e9, memT=[], landed=false; const act2Lines=[];   // 1 interactive, 2 authored, 3 END after Act 2
-let prevRZ=null, robotTZ=0, wheelImp=0, mainS=0, bareMode=false, rimLast=-1, bulkLast=-1;   // bareMode: harness only, hides everything but the figure to measure him
+let act=1, voidI=-1, phase2='', phaseT=0, grounded=false, landLined=false, act2T=0, act2Roll=0, act2Pitch=0, act2Yaw=0, stageI=-1, plungeFov=null, rollRate=0, a2From=0, a2To=0, a2Ramp=1, dealAt=-1e9, memT=[], landed=false; const act2Lines=[];   // 1 interactive, 2 authored, 3 END after Act 2
+let lightsKill=false, rimCLast='', prevRZ=null, robotTZ=0, wheelImp=0, mainS=0, bareMode=false, rimLast=-1, bulkLast=-1;   // bareMode: harness only, hides everything but the figure to measure him
 let auto=true, autoT=0, bootT=0, openLook=0;      // the opening: the fall starts on its own, the first look change at 7 s
 let loading=true, loadP={fonts:0,tunnel:0,logos:0,track:0}, loadReady=false, loadT0=performance.now();
 function loadFrac(){ return 0.2*loadP.fonts+0.2*loadP.tunnel+0.3*loadP.logos+0.3*loadP.track }
@@ -650,7 +656,7 @@ let leftAt=-1e9;                         // when the loader was left; key and po
 function leaveLoader(e){ if(!loadReady||!loading)return; loading=false; leftAt=performance.now(); document.body.classList.remove('loading'); firstGesture(); sndLabel(); bootT=0; autoT=0; loadT0=performance.now();
  if(e&&e.type==='keydown'&&e.key&&e.key.toLowerCase()==='w'){keys.w=1;$('kw')?.classList.add('on')}
  const L=$('loader'); if(RM){L.hidden=true;return} L.classList.add('off1'); setTimeout(()=>L.classList.add('off2'),160); setTimeout(()=>{L.hidden=true},280) }
-let morphSeen=0, lookFlip=0, invRun=0, invAt=0, invOn=false, flashN=0, flashAt=-1e9, lookAt=-1e9, beatHi=0, plungeFlashes=0, fovLast=70;   // lookAt: the last look change of any kind   // universes dealt so far, which corridor shape is up, the once-per-Act-1 inverse run
+let morphSeen=0, lookFlip=0, invRun=0, invAt=0, invOn=false, flashN=0, flashAt=-1e9, lookAt=-1e9, beatHi=0, plungeFlashes=0, fovLast=70, calmLast=null;   // lookAt: the last look change of any kind   // universes dealt so far, which corridor shape is up, the once-per-Act-1 inverse run
 let jump=0;                               // the CONTACT jump: frames left to the floor, 0 when idle
 
 /* ---------- chrome: three things besides the fall ---------- */
@@ -731,19 +737,21 @@ const endEls=(()=>{const root=$('end'), els=[], top=document.createElement('div'
  top.className='top'; cols.className='cols'; left.className='left'; bot.className='bot right'; const mid=document.createElement('div'); cols.append(left,mid,bot); root.append(top,cols);
  const add=(p,cls,txt)=>{const d=document.createElement('div');d.className=cls;d.textContent=txt;p.appendChild(d);els.push(d);return d};
  for(const t of END.lines||[]){const d=add(top,'el','');d.dataset.type=t}
- if(END.name)add(top,'name',END.name);
- if(END.roles)add(left,'roles',END.roles);
- if(END.line)add(left,'line',END.line);
+ if(END.roles)add(top,'name',END.roles);                                    // the name lives in the first line now: the roles take the big slot
+ if(END.line)add(top,'line',END.line);
  if(END.cta)add(bot,'cta',END.cta);
  if(END.email){const a=document.createElement('a');a.className='mail bk';a.href='mailto:'+END.email;bk(a,END.email);isolate(a);bot.appendChild(a);els.push(a)}
  const links=document.createElement('div');links.className='links';bot.appendChild(links);
  for(const l of END.links||[]){const a=document.createElement('a');a.className='bk';a.href=l.url;a.target='_blank';a.rel='noopener';bk(a,l.label);isolate(a);links.appendChild(a);els.push(a)}
  if(END.outro)add(bot,'outro',END.outro);
  if(END.credit)add(bot,'credit',END.credit);
- for(const el of left.querySelectorAll('.line'))el.classList.add('mono','ph');
+ for(const el of top.querySelectorAll('.line'))el.classList.add('mono','ph');
  for(const el of bot.querySelectorAll('.cta,.outro,.credit'))el.classList.add('ph');
  return els})();
-function startEnd(){ if(ended)return; ended=true; jump=0; release(); hideKeys(); $('skip').hidden=true; if(act===2)act=3; document.body.classList.add('endon'); document.body.classList.remove('act2') }
+function startEnd(){ if(ended)return; ended=true; jump=0; release(); hideKeys(); $('skip').hidden=true; if(act===2)act=3; document.body.classList.add('endon'); document.body.classList.remove('act2');
+ try{ crt.setScreen?.('eyes') }catch(e){} screenMode='eyes'; lastMoveAt=performance.now() }
+let screenMode='', lastMoveAt=0;
+addEventListener('mousemove',()=>{ lastMoveAt=performance.now(); if(ended&&screenMode==='glyph'){ screenMode='eyes'; try{crt.setScreen?.('eyes')}catch(e){} } },{passive:true});
 /* ---------- ACT 2: the authored fall. The tunnel changes look per void (tunnel.setLook is the tunnel owner's; phase control is the fallback). ---------- */
 let holdT=0;                              // the hand-off hold: 1.2 s at 0.6x before the first phase, so the change reads as intended
 let ripAmt=0, whip=0; const flashEl=document.getElementById('flash'), cutLog=[];
@@ -761,7 +769,8 @@ function enterPhase(name){ phase2=name; phaseT=0; const now=performance.now(); c
    pose('fall',0.5); a2From=vT; a2To=(A2M.speed||0.9)*A2X; a2Ramp=0; memFlags={title:false,tail:false} }
   else if(name==='plunge'){ for(const m of memT)if(m.video)m.video.pause?.(); tunnel?.setLook?.('plunge',0.4); pose('tuck',0.5); a2From=vT; a2To=(A2P.speeds||[3])[0]*A2X; a2Ramp=0; dealAt=now; memFlags.plungeText=false;
    stageI=-1; if((A2P.stages||[]).length)enterStage(0,(A2P.secs||10)/A2P.stages.length) }
-  else if(name==='landing'){ for(const m of memT)if(m.video)m.video.pause?.(); tunnel?.setLook?.('landing',0.6); pose('stand',0.6); a2From=vT; a2To=0; a2Ramp=0; landed=false;
+  else if(name==='landing'){ for(const m of memT)if(m.video)m.video.pause?.(); tunnel?.setLook?.('landing',0.6); pose('stand',0.6); a2From=vT; a2To=0; a2Ramp=0; landed=false; grounded=false; landLined=false;
+   try{ tunnel?.matrixExit?.(1.6) }catch(e){} try{ crt.land?.(1) }catch(e){} try{ if(A2L.plane)tunnel?.setPlane?.(A2L.plane) }catch(e){}   // the jetpack landing: burn 0 to 700 ms, touch at 700, stand from 1000
    /* the END transition rides the landing: the floor stays visible behind him */ }
  }catch(e){} }
 let memFlags={};
@@ -794,13 +803,13 @@ function act2Frame(raw){ if(holdT>0){ holdT-=raw/1000; if(holdT<=0){holdT=0;ente
   else if(stage==='collapse'){ levelRoll(raw); plungeFov=62+(80-62)*stF }
   else { rollRate=(40+18*Math.sin(act2T*1.3))*D2R; act2Roll+=rollRate*sec; act2Pitch=6*D2R*Math.sin(act2T*0.9) }
   if(stage!=='shards')ripAmt=Math.max(ripAmt,0.006);
-  if(!memFlags.plungeText&&(stage==='inverse'||(!ST.length&&f>=0.5))){memFlags.plungeText=true;if(A2P.text)a2line(A2P.text)}
   if(phaseT>=D){ plungeFov=null; enterPhase('landing') } }
- else if(phase2==='landing'){ const D=A2L.secs||4.5;
-  a2Ramp=Math.min(1,a2Ramp+raw/1200); const k=a2Ramp*a2Ramp*(3-2*a2Ramp); vT=a2From*(1-k);
+ else if(phase2==='landing'){ const D=A2L.secs||5;
+  a2Ramp=Math.min(1,a2Ramp+raw/700); const k=a2Ramp*a2Ramp*(3-2*a2Ramp); vT=a2From*(1-k);                     // speed to 0 over the burn
   ripAmt*=Math.pow(0.85,raw/16.67);
-  if(!landed&&phaseT>=1.2){ landed=true; try{ crt.land?.(1); tunnel?.impact?.(1); audio?.tvPoke?.(0.8); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0} setTimeout(()=>crt.setGrounded?.(true),700) }catch(e){}
-   if(A2L.text)typeIntoFree(landLine(),A2L.text); TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() }
+  if(!landed&&phaseT>=0.7){ landed=true; try{ tunnel?.impact?.(1); audio?.tvPoke?.(0.8); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0} }catch(e){} }   // touch
+  if(!grounded&&phaseT>=1.0){ grounded=true; try{ crt.setGrounded?.(true) }catch(e){} }
+  if(!landLined&&phaseT>=1.3){ landLined=true; if(A2L.text)typeIntoFree(landLine(),A2L.text); TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() }   // standing: the line, then the END rides in
   if(phaseT>=D&&!ended){ TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() } }
  whip*=Math.pow(0.86,raw/16.67); if(phase2!=='plunge')ripAmt*=Math.pow(0.80,raw/16.67) }
 /* after the plunge the tumble must level: wrap the accumulated roll to the nearest level and spring it out, whatever act we are in */
@@ -826,7 +835,7 @@ function logObject(o){ if(o.logged)return; o.logged=true; loggedSet.add(o.slug);
  /* the ring pulse: an additive ring, 1 to 4 over 500 ms, fading */
  const m=new THREE.Mesh(ringGeoP,new THREE.MeshBasicMaterial({color:o.neon,transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));
  m.position.copy(o.grp.position); m.quaternion.copy(camera.quaternion); const s0=Math.max(6,(o.pw||o.w)*0.6); m.scale.setScalar(s0); m.userData={t0:performance.now(),s0}; scene.add(m); pulses.push(m);
- robot.setSuitTint?.(o.neon); setTimeout(()=>robot.setSuitTint?.(null),200);
+ if(act===1){ robot.setSuitTint?.(o.neon); setTimeout(()=>robot.setSuitTint?.(null),200) }
  tunnel?.kick?.(0.6); audio?.tvPoke?.(0.35);
  /* the toast, near the object in screen space */
  const d=document.createElement('div'); d.className='toast mono ph'; document.body.appendChild(d); toasts.push({el:d,o,t0:performance.now()});
@@ -952,7 +961,7 @@ let last=performance.now(), frameNo=0, csLast=-1, accLast='', vGhostOn=false, be
 /* ---------- physics: a fixed 1/120 s step inside an accumulator (8 steps per frame at most); the render interpolates ---------- */
 let dtw=0, av=0, sp=0, vc=0, open=0, sh=0, shx=0, shy=0, px=0, py=0, wheelAcc=0, wheelX=0, touchX=0, touchY=0, physAcc=0;
 const steer=new THREE.Vector2(), camGoal=new THREE.Vector2(), lookGoal=new THREE.Vector2(), lookP=new THREE.Vector2(), lookV=new THREE.Vector2();
-let bankT=0, bankS=0, pitchT=0, pitchS=0, fovT=70, fovS=70;
+let bankT=0, bankS=0, pitchT=0, pitchS=0, fovT=70, fovS=70, titleSide=0;
 /* a critically damped spring on a Vector2: omega in 1/s */
 function critSpring(x,v,target,omega,h){ for(const k of ['x','y']){ const d=x[k]-target[k]; const a=-omega*omega*d-2*omega*v[k]; v[k]+=a*h; x[k]+=v[k]*h } }
 let prevCam=0, prevRoll=0; const prevDrift=new THREE.Vector2(), prevRobot=new THREE.Vector2();
@@ -991,7 +1000,7 @@ function physicsStep(dt,raw){
  if(act===1&&!ended&&v>0&&cam>=HANDOFF_Z)startAct2(0);              // the handoff line: Act 2 takes the controls
  if(cam>=TOTAL_DEPTH&&!ended&&act!==2)startEnd();                    // in Act 2 only the landing starts the END; the plunge outruns any depth estimate
  if(ended&&cam<TOTAL_DEPTH-40)unEnd();                                 // backing away from the floor unwinds the END
- if(act===3&&!ended&&endP<=0){ act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; plungeFlashes=0; landed=false; crt.setGrounded?.(false); tunnel?.setBeatMorph?.(true,5); document.body.classList.remove('act2','endon'); cam=HANDOFF_Z-80; try{tunnel?.setBend?.(tunnel.defaultBend!==undefined?tunnel.defaultBend:true)}catch(e){} v=Math.min(v,0); vT=Math.min(vT,0); for(const m of act2Lines)scene.remove(m); allLines.length=lines.length; act2Lines.length=0 }   // Act 2 is skipped on the way up
+ if(act===3&&!ended&&endP<=0){ act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; landS=ROBOT_S; plungeFlashes=0; landed=false; crt.setGrounded?.(false); tunnel?.setBeatMorph?.(true,5); document.body.classList.remove('act2','endon'); cam=HANDOFF_Z-80; try{tunnel?.setBend?.(tunnel.defaultBend!==undefined?tunnel.defaultBend:true)}catch(e){} v=Math.min(v,0); vT=Math.min(vT,0); for(const m of act2Lines)scene.remove(m); allLines.length=lines.length; act2Lines.length=0 }   // Act 2 is skipped on the way up
  if(ended){ vT=Math.min(vT,0); if(v>0)v*=Math.pow(0.75,dt); cam+=(END_STOP-cam)*(1-Math.pow(0.985,dt)); if(cam>END_STOP+40)cam=END_STOP+40 }   // the floor: a settle, not a clamp
  if(ended){driftT.multiplyScalar(Math.pow(0.9,dt))}                  // the robot settles on the axis
  av=Math.abs(v);
@@ -1015,12 +1024,20 @@ function physicsStep(dt,raw){
  /* the figure springs to the steering target; the camera position and the look target follow him through critically damped springs (6/s and 9/s),
     the look target leading him in the steering direction so turns read ahead */
  let endPelvis=ROBOT_END_Y;
- if(ended||endP>0){ const k=endP*endP*(3-2*endP); try{ const fy=tunnel?.landingY?.(); if(typeof fy==='number'&&isFinite(fy))endPelvis=fy+0.95*ROBOT_END_S }catch(e){}
-  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-k)+endPelvis*k) } else robotT.set(driftT.x,driftT.y+ROBOT_LOW);
+ { let onTitle=false; for(const m of lines)if(m.visible&&m.material.opacity>0.3){onTitle=true;break} titleSide+=((onTitle?14:0)-titleSide)*(1-Math.exp(-hsec*4)) }   // a world title on screen: he drifts aside so he never covers the type
+ const landing=act===2&&phase2==='landing';
+ if(ended||endP>0||landing){ const k=endP*endP*(3-2*endP); let fy=null; try{ const f=tunnel?.landingY?.(); if(typeof f==='number'&&isFinite(f))fy=f }catch(e){}
+  /* boots on the hill at the CURRENT scale: pelvis = floor + 0.95 * S. During the burn he hovers a little above it and settles by the touch. */
+  const lb=landing?Math.min(1,phaseT/0.7):1, lbs=lb*lb*(3-2*lb), hover=landing?2.5*(1-lbs):0;
+  if(fy!=null)endPelvis=fy+0.95*robotScale+hover;
+  const ky=landing&&endP<=0?lbs:1;                                       // the landing blends from the fall line to the floor over the burn; the END holds it
+  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-ky)+endPelvis*ky) } else robotT.set(driftT.x+titleSide,driftT.y+ROBOT_LOW);
  robotV.x += (robotT.x-robotP.x)*0.0156*dt; robotV.y += (robotT.y-robotP.y)*0.0156*dt;
  robotV.multiplyScalar(Math.pow(0.86,dt)); robotP.addScaledVector(robotV,dt);
  const cd=critSpring;
- if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S; camGoal.set(driftT.x*(1-k),robotP.y*(1-k)+eye*k); lookGoal.set(robotP.x*(1-k),robotP.y*(1-k)+eye*k) }   // lens at his eye line, level, straight at the screen (owner: no low angle)
+ if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S, chest=robotP.y+0.55*landS;
+  camGoal.set(driftT.x*(1-k),(robotP.y+6)*(1-k)+eye*k); lookGoal.set(robotP.x*(1-k),chest*(1-k)+(eye-0.02*ROBOT_END_S)*k) }   // the landing rig eases into the END rig; the look target drops below the eye so the set top lands near 24%
+ else if(act===2&&phase2==='landing'){ camGoal.set(robotP.x,robotP.y+8); lookGoal.set(robotP.x,robotP.y+0.15*landS) }   // 40 behind, 8 above, looking at his hips: boots and ground in frame         // 40 behind, 6 above, looking at his chest   // lens at his eye line, level, straight at the screen (owner: no low angle)
  else { camGoal.set(robotP.x,robotP.y+3); lookGoal.set(robotP.x+steer.x*12,robotP.y-2+steer.y*8) }   // behind and a little above him, looking a touch below his line
  cd(drift,driftV,camGoal,6,hsec); cd(lookP,lookV,lookGoal,9,hsec);
  /* bank: he rolls into lateral moves (22 degrees at most) and pitches on vertical ones; the camera takes a third of the roll */
@@ -1086,15 +1103,17 @@ function frame(now){
  /* the robot: leads the camera by LEAD, pulls ahead with speed. endP drives the END both ways:
     0..0.375 tuck and pull away, grow over 0..0.75, turn to face us and stand at 0.375, words at 1. */
  let lead=LEAD_REST+(LEAD_FAST-LEAD_REST)*sp, S=ROBOT_S;                  // he pulls ahead as you go faster: a distant thing we chase
+ if(act>=2&&(phase2==='landing'||ended||endP>0)){ const lb=Math.min(1,phaseT/0.7), lbs=lb*lb*(3-2*lb); landS=ROBOT_S+(LAND_S-ROBOT_S)*lbs; lead=LEAD_REST+(40-LEAD_REST)*lbs; S=landS }   // the set piece: he grows as he burns in, the camera 40 behind
  if(endP>0){ const e=Math.min(1,endP/0.75), eo=1-Math.pow(1-e,3), e2=Math.min(1,endP/0.625), ei=e2*e2*(3-2*e2);
-  lead=lead+(LEAD_END-lead)*ei; S=ROBOT_S+(ROBOT_END_S-ROBOT_S)*eo }
+  lead=lead+(LEAD_END-lead)*ei; S=landS+(ROBOT_END_S-landS)*eo }
  if(act===2&&endP<=0){ tumble((phase2==='plunge'?1.5:phase2==='memory'?0.6:0)*(RM?0:1)) }   // Act 2 poses come from the phases
  else if(endP<=0&&!ended){ pose(av>2.5?'tuck':hold?'brake':'fall'); tumble(hold?0.3:(0.12+0.5*sp)*ts) }
  else { tumble((0.12+0.5*sp)*ts*(1-eTs)); if(endP<0.375)pose('tuck',0.4); else pose('stand',0.6) }
  /* boosters: main from W or a wheel impulse smoothed over 250 ms (Act 2: while accelerating), sides from the drift target, retro from the brake */
  wheelImp*=Math.exp(-raw/250); const mainT=act===2?(phase2==='plunge'?1:Math.max(0,Math.min(1,(vT-v)*2))):Math.max(keys.w,wheelImp,auto?0.25:0); mainS+=(mainT-mainS)*(1-Math.exp(-raw/250));
  robot.setIntent?.(endP>0.3?0:act===2?(phase2==='plunge'?1:phase2==='memory'?0.3:0.2):Math.max(0,Math.min(1,0.35*mainS+0.65*sp)));   // the eyes narrow as he accelerates; the calm stare at the END
- { const rimT=+(1.4+0.8*eTs).toFixed(2); if(rimT!==rimLast){rimLast=rimT;robot.setRim?.(rimT,ACCENT_END)} }
+ { const set=(act===2&&phase2==='landing')||ended||endP>0, rimT=+(1.4+0.8*eTs).toFixed(2), rimC=set?'#dfefff':ACCENT_END; if(rimT!==rimLast||rimC!==rimCLast){rimLast=rimT;rimCLast=rimC;robot.setRim?.(rimT,rimC)} }
+ chaseP.intensity=((act===2&&phase2==='landing')||ended||endP>0)?0:0.6*(1-eTs);                    // the accent chase point never touches him on the hill
  { const bulk=+(endP>0?Math.min(1,endP/0.6):0).toFixed(2); if(bulk!==bulkLast){bulkLast=bulk;robot.setBulk?.(bulk)} }   // chunky as he jumps ahead into the landing, back on the unwind
  camera.fov=fovS+(FOV_END-fovS)*eTs2; if(Math.abs(camera.fov-fovLast)>0.01){fovLast=camera.fov;camera.updateProjectionMatrix()}
  robot.setThrust?.({main:mainS,left:Math.max(0,-steer.x),right:Math.max(0,steer.x),up:Math.max(0,steer.y),down:Math.max(0,-steer.y),retro:((hold||keys.s)&&act===1)||phase2==='landing'?1:0});
@@ -1107,15 +1126,16 @@ function frame(now){
  if(endP<=0){ robot.group.quaternion.copy(FALL_Q).premultiply(tmpQ2.setFromEuler(tmpE.set(pitchS,0,bankS))) } else robot.group.quaternion.copy(FALL_Q);   // he leans into the turn and pitches on climbs; level for the END turn
  robot.update(raw/1000,shipT/1000); scaleLights(robotLights,robotScale);
  /* END lights ride with him and only exist while the END has weight */
- const lit=endP>0; if(rimL.visible!==lit){rimL.visible=lit;fillL.visible=lit;keyL.visible=lit}   // flips once, at zero intensity; the fade is 1 s each way
- chaseL.intensity=1.1*(1-eTs); chaseP.intensity=0.6*(1-eTs);
- if(lit){ const P=robot.group.position; rimL.position.set(P.x-40,P.y+60,P.z-50); rimL.target.position.copy(P); rimL.target.updateMatrixWorld();
-  fillL.position.set(P.x+35,P.y+30,P.z+60); rimL.intensity=0.9*eTs; fillL.intensity=0.5*eTs;
-  keyL.position.set(camera.position.x-30,camera.position.y+18,camera.position.z-25); keyL.intensity=1.6*eTs }
+ const lit=endP>0||(act===2&&phase2==='landing'); if(rimL.visible!==lit){rimL.visible=lit;fillL.visible=lit;keyL.visible=lit}   // flips once, at zero intensity; the fade is 1 s each way
+ const litK=(act===2&&phase2==='landing'&&endP<=0)?Math.min(1,phaseT/0.7):eTs;
+ chaseL.intensity=1.1*(1-eTs);
+ if(lit&&!lightsKill){ const P=robot.group.position; rimL.position.set(P.x-40,P.y+60,P.z-50); rimL.target.position.copy(P); rimL.target.updateMatrixWorld();
+  fillL.position.set(P.x+35,P.y+30,P.z+60); rimL.intensity=0.9*litK; fillL.intensity=0.5*litK;
+  keyL.position.set(camera.position.x-30,camera.position.y+18,camera.position.z-25); keyL.intensity=1.6*litK }
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
- if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,phaseT:+phaseT.toFixed(1),stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
+ if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
-  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
+  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }
 
  /* particles: stretch with speed, recycle, energy budget */
@@ -1210,6 +1230,7 @@ function frame(now){
  } else if(!tvHover) br.style.opacity=0;
 
  gameFrame(now);
+ if(ended&&endP>=1&&screenMode==='eyes'&&now-lastMoveAt>8000){ screenMode='glyph'; try{crt.setScreen?.('glyph')}catch(e){} }   // the idle glyph after 8 s without a pointer
  if(bareMode){ if(tunnel&&tunnel.group)tunnel.group.visible=false; for(const m of allLines)m.visible=false; for(const o of cards)o.grp.visible=false; for(const r of rings)r.visible=false; pwM.opacity=0; pcM.opacity=0; $('end').style.visibility='hidden' }
  /* the END: the figure follows the pointer, the glass answers a hover and a poke */
  if(endP>=0.99&&ended){ endFrame(now) }
@@ -1217,14 +1238,18 @@ function frame(now){
  if(audioOn)audio.setState({v,ts,hold,shake:shAmp*Math.exp(-shPh*3.4),dark:!!(hoverO&&hoverO.state==='dark')});
 
  /* inverse: paper white world, ink chrome. Above 0.5 the post effects drop out and the DOM flips. */
- const invRaw=tunnel?tunnel.inverse:0, inv=typeof invRaw==='number'&&isFinite(invRaw)?invRaw:0, invNow=inv>0.5;   // a getter on the module, read as a value
+ const invRaw=tunnel?tunnel.inverse:0, invAllowed=act===1||(act===2&&phase2==='plunge'&&(A2P.stages||[])[stageI]==='inverse');   // the paper flip belongs to Act 1 and the inverse stage only
+ const inv=invAllowed&&typeof invRaw==='number'&&isFinite(invRaw)?invRaw:0, invNow=inv>0.5;
+ const glyphsI=(A2P.stages||[]).indexOf('glyphs'), calm=(act===2&&phase2==='plunge'&&glyphsI>=0&&stageI>=glyphsI)||phase2==='landing'||ended||endP>0;   // from the glyphs stage on: only emissives bloom
+ if(calm!==calmLast){ calmLast=calm; bloom.threshold=calm?0.92:0.72; renderer.toneMappingExposure=1.0 }
  if(document.body.classList.contains('inv')!==invNow)document.body.classList.toggle('inv',invNow);                   // follows the value every frame, never latched
  if(invNow!==invOn){ invOn=invNow; for(const m of allLines)m.material.color.setHex(invOn?0x101218:0xffffff) }
  if(inv>0.001){ const bg=(tunnel.background&&tunnel.background.isColor)?tunnel.background:invTmp.setHex(0xf2f1ec); scene.background.copy(invBase).lerp(bg,inv); scene.fog.color.copy(scene.background) }
- else if(scene.background.getHex()!==0x03040a){ scene.background.setHex(0x03040a); scene.fog.color.setHex(0x03040a) }
+ else { const fc=tunnel&&tunnel.fogColor; if(fc&&fc.isColor){ scene.background.copy(fc); scene.fog.color.copy(fc) }                        // bliss: the horizon fades to the sky, not to black
+  else if(scene.background.getHex()!==0x03040a){ scene.background.setHex(0x03040a); scene.fog.color.setHex(0x03040a) } }
  /* post amounts */
- shift.uniforms.amount.value = (RM||invNow||lowEnd)?0 : (sp*sp*0.0075 + sh*0.0016 + ripAmt);
- bloom.strength = (RM||invNow)?0 : (lowEnd?0.3:0.36)+0.5*sp+(L?0.18*(L.bass||0):0)+(phase2==='plunge'&&act===2?0.25:0);
+ shift.uniforms.amount.value = (RM||invNow||lowEnd||calm)?0 : (sp*sp*0.0075 + sh*0.0016 + ripAmt);
+ bloom.strength = (RM||invNow)?0 : calm?0.12 : (lowEnd?0.3:0.36)+0.5*sp+(L?0.18*(L.bass||0):0)+(phase2==='plunge'&&act===2?0.25:0);
 
  /* the one readout left: speed, with a phosphor ghost of the digits from 80 ms ago */
  const vtxt=(av>=10?av.toFixed(2):av.toFixed(3)); $('vn').firstChild.nodeValue=vtxt; $('vdir').hidden=v>=0;

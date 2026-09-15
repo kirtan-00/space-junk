@@ -14,7 +14,7 @@ export const DESCENT = [
   {at:0.11, text:"HOLD SPACE TO SLOW DOWN"},
   {at:0.13, text:"THE GOOD ONES GO BY FAST"},
   {at:0.17, text:"SOME OF IT WAS SHOT AT 24"},
-  {at:0.27, text:"SOME OF IT NEEDED A TERMINAL"},
+  {at:0.27, text:"SOME OF IT NEEDED A TERMINAL", title:true},
   {at:0.36, text:"I STOPPED KEEPING SCORE"},
   {at:0.53, text:"TOUCH ONE. IT WILL TALK."},
   {at:0.58, text:"THE SEALED ONES WON'T OPEN"},
@@ -42,24 +42,28 @@ export const ACT2 = {
     manifest:"assets/memories/manifest.json"   /* clips and photos Kirtan supplies; see the README there */
   },
   plunge:{
-    secs:10,
+    secs:6,
     speeds:[2.4,4.0,5.5,7.0],        /* ramps through these, eased, over the phase */
     dealEvery:0.4,                     /* seconds between colour + shape deals (also on every beat) */
     shapes:["cube","octa","tetra","ico","lattice","stairs","rings","shards"],
-    /* the plunge is a cut list: each stage is a distinct room, in order, about secs/stages each; the tunnel owns the looks */
-    stages:["cubes","lattice","stairs","inverse","rings","shards","cubes-wave","collapse"],
-    text:"FROM EVERYWHERE AT ONCE"
+    /* the plunge is a cut list: each stage is a distinct room, in order, about secs/stages each; the tunnel owns the looks.
+       No text in the plunge (owner). glyphs = the words-and-numbers tunnel, last before the collapse so the landing reads as coming out of the code. */
+    stages:["cubes","lattice","stairs","inverse","rings","shards","glyphs","collapse"],
+    glyphWords:["RENDER","TAKE 2","24 FPS","ROLL","CUT","EXPORT","DEPLOY","COMMIT","ACTION","SHIP IT","REEL","FRAME","LIGHT","PUSH","MERGE","LOG"],
+    text:null
   },
   landing:{
-    secs:4,
-    text:"I AM DOWN HERE"
+    secs:5,
+    text:"I AM DOWN HERE",
+    /* the plane he lands on: rolling green hills under a blue sky, in the spirit of the old XP wallpaper. The code rain drains away as he stands. */
+    plane:"bliss"
   }
 };
 
 /* The very end. CRT-headed figure, his face on the screen. Lines land one at a time.
    This is the ONE place roles are named. Everything above it only showed the work. */
 export const END = {
-  lines:["HI. I MADE ALL OF THAT.","SOME OF IT ON PURPOSE."],
+  lines:["HI. I AM KIRTAN PUROHIT.","AND I CAN MAKE THAT HAPPEN."],
   name:"KIRTAN PUROHIT",
   roles:"CREATIVE PRODUCER. FILMMAKER. DEVELOPER.",
   line:"A soul that yearns for the scream of the creative muse.",

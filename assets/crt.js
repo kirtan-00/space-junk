@@ -8,9 +8,9 @@
                              setThrust, setSuitTint, setPointer, joints, full }
      opts.accent  hex string, tints the lit indicator, the roll bar and the glow. Default '#3fe9ff'.
      opts.full    full body (default false: chest-up).
-     opts.suit    "dark" (default): charcoal suit. "light": the white astronaut. One material
-                  with a rubbery sheen, segmented tubes with ball joints, mitts with a cuff
-                  ring, block boots with a light sole line, a chest plate and a small pack.
+     opts.suit    "light" (default): glossy white clearcoat suit, blue accents on the joints,
+                  pack strip, soles, chest and neck. "dark": the charcoal option. Stubby toy
+                  proportions, ball joints, ball mitts, thick rounded boots, a jetpack.
 
    Geometry (units match junk3d):
      Set is 0.56 wide, 0.58 tall, cabinet 0.40 deep. Glass 0.45 x 0.42, aspect 1.08.
@@ -48,11 +48,16 @@
      setSuitTint(hex|null)  light emissive tint on the knit and trousers.
      setIntent(v) 0..1, eased over 300 ms. At 1 the eyes narrow to 35 percent height,
                   slide together, brighten 1.3x with a faint accent tint, and blink less.
-     land(s)      touchdown over about 900 ms: brace (knees 55 deg, arms out low, set down
-                  8 deg), impact at 180 ms (40 ms squash to 0.94 y / 1.03 xz with a damped
-                  bounce, cables whip, set light stutters, eyes blink, dots chase), then a
-                  rise into "stand" with a small two-sine settle (0.9 s and 1.4 s).
-                  Reduced motion: no squash, straight to stand.
+     land(s)      jetpack touchdown in three beats, driven by update's t:
+                  burn 0..700 ms: hover pose, mains hard down, pack light bright, a wobble,
+                    held 0.30 above the ground;
+                  touch 700..1000 ms: mains cut, the drop, impact at 850 ms with the squash and
+                    bounce, soles flash, pack light dims, brace pose;
+                  stand 1000 ms on: rise into stand with the settle, grounded idle switches on,
+                    a short blue puff at 1350 ms as the sign-off.
+                  Reduced motion: straight to stand, grounded.
+     landPhase()  'burn' | 'touch' | 'stand' | null (null when no landing is running; the
+                  'stand' phase reports until 3.5 s after the start).
      setGrounded(b)  true turns off the tumble and the zero-g bob and runs a weight-shift
                   idle instead (hips +-1.5 deg on 5.3 s, breathing on the spine).
      setBulk(v)   0..1, eased over 600 ms, default 0. At 1 the proportions go stocky: torso,
@@ -357,7 +362,7 @@ export function makeCRT(THREE, opts = {}) {
   const accentHex = pickAccent(opts.accent);
   const accent = new THREE.Color(accentHex);
   const full = !!opts.full;
-  const darkKnit = opts.suit !== 'light';
+  const darkKnit = opts.suit === 'dark';
 
   const group = new THREE.Group();
   group.name = 'crt-spaceman';
@@ -376,19 +381,23 @@ export function makeCRT(THREE, opts = {}) {
   const rubber = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.55, metalness: 0.0 });
   const cableMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.45, metalness: 0.1 });
   const dotOff = new THREE.MeshStandardMaterial({ color: 0x9a9aa0, roughness: 0.4, metalness: 0.2 });
-  /* one suit material with a slightly rubbery sheen. "light" is the white astronaut. */
-  const knitColor = new THREE.Color(darkKnit ? 0x1c1e24 : 0xecece6);
-  const knit = new THREE.MeshStandardMaterial({
-    color: knitColor, roughness: darkKnit ? 0.55 : 0.6, metalness: 0.06,
-    emissive: knitColor.clone(), emissiveIntensity: 0.03,
+  /* the suit: glossy white by default, clearcoat sheen. "dark" is the charcoal option. */
+  const BLUE = new THREE.Color(0x3fb6ff);
+  const knitColor = new THREE.Color(darkKnit ? 0x1c1e24 : 0xf0f0ea);
+  const knit = new THREE.MeshPhysicalMaterial({
+    color: knitColor, roughness: 0.35, metalness: 0.02, clearcoat: 0.6, clearcoatRoughness: 0.25,
+    emissive: knitColor.clone(), emissiveIntensity: 0.02,
   });
   /* joints, mitts, boots: a shade apart from the suit so the segments read */
-  const jointMat = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x2a2c34 : 0xd4d1c9, roughness: 0.45, metalness: 0.1 });
-  const extremity = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x24262d : 0xd4d1c9, roughness: 0.5, metalness: 0.08 });
+  const jointMat = new THREE.MeshPhysicalMaterial({ color: darkKnit ? 0x2a2c34 : 0xdcdad3, roughness: 0.3, metalness: 0.05, clearcoat: 0.5, clearcoatRoughness: 0.3 });
+  const extremity = new THREE.MeshPhysicalMaterial({ color: darkKnit ? 0x24262d : 0xe6e4de, roughness: 0.32, metalness: 0.04, clearcoat: 0.6, clearcoatRoughness: 0.25 });
   const trouser = knit;
-  const sole = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x121316 : 0x1c1c1e, roughness: 0.7, metalness: 0.0 });
-  const soleLine = new THREE.MeshStandardMaterial({ color: 0xd8d5cd, roughness: 0.5, metalness: 0.0 });
-  const plateMat = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x23252c : 0xe3e0d8, roughness: 0.5, metalness: 0.08 });
+  const sole = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x121316 : 0x2a2c33, roughness: 0.7, metalness: 0.0 });
+  const plateMat = new THREE.MeshPhysicalMaterial({ color: darkKnit ? 0x23252c : 0xe9e8e2, roughness: 0.33, metalness: 0.04, clearcoat: 0.6, clearcoatRoughness: 0.25 });
+  /* the cool blue accent: joints, pack strip, boot soles, chest, neck */
+  const blueMat = new THREE.MeshStandardMaterial({ color: 0x0a2233, emissive: BLUE.clone(), emissiveIntensity: 1.1, roughness: 0.4 });
+  const soleLine = blueMat;
+  const ringMetal = new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.3, metalness: 0.85 });
 
   /* ----- helpers ----- */
   const roundedRect = (x, y, w, h, r) => {
@@ -546,21 +555,25 @@ export function makeCRT(THREE, opts = {}) {
     [0.092, 0.53], [0.088, 0.56],
   ].map(([r, y]) => new THREE.Vector2(r, y));
   const torso = new THREE.Mesh(new THREE.LatheGeometry(tProfile, 44), knit);
-  torso.scale.set(1.36, 1, 0.56);
+  torso.scale.set(1.42, 0.92, 0.78);   /* rounder, a touch shorter */
   bulkPart(torso, 0.25, 0, 0.25);
   spine.add(torso);
   /* chest plate: a soft rounded box on the front */
   const plateShape = roundedRect(-0.15, -0.11, 0.30, 0.22, 0.05);
   const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(plateShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3, curveSegments: 8 }), plateMat);
-  plate.position.set(0, 0.30, 0.105);
+  plate.position.set(0, 0.27, 0.15);
   spine.add(plate);
   bulkPart(plate, 0.25, 0.05, 0.25);
+  /* chest accent: a small blue bar */
+  const chestBar = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.014, 0.008), blueMat);
+  chestBar.position.set(0, 0.325, 0.20);
+  spine.add(chestBar);
   /* the collar the set sits into */
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.088, 0.094, 0.14, 32, 1, true), knit);
   collar.position.set(0, 0.575, 0);
   spine.add(collar);
   bulkPart(collar, 0.15, 0, 0.15);
-  const collarTop = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.012, 8, 32), jointMat);
+  const collarTop = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.012, 8, 32), blueMat);
   collarTop.rotation.x = Math.PI / 2;
   collarTop.position.set(0, 0.645, 0);
   spine.add(collarTop);
@@ -570,12 +583,29 @@ export function makeCRT(THREE, opts = {}) {
   spine.add(neck);
   bulkPart(neck, 0.15, 0, 0.15);
 
-  /* pack: a small block on the back, the mains come out of its base */
-  const packShape = roundedRect(-0.17, -0.16, 0.34, 0.32, 0.06);
-  const pack = new THREE.Mesh(new THREE.ExtrudeGeometry(packShape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 8 }), plateMat);
-  pack.position.set(0, 0.28, -0.22);
+  /* jetpack: a rounded pack on the back, two nozzles with metal rings, a blue light strip */
+  const packShape = roundedRect(-0.19, -0.17, 0.38, 0.34, 0.10);
+  const pack = new THREE.Mesh(new THREE.ExtrudeGeometry(packShape, { depth: 0.10, bevelEnabled: true, bevelThickness: 0.035, bevelSize: 0.03, bevelSegments: 4, curveSegments: 10 }), plateMat);
+  pack.position.set(0, 0.26, -0.27);
   spine.add(pack);
   bulkPart(pack, 0.25, 0.1, 0.25);
+  const packStrip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.01), blueMat);
+  packStrip.position.set(0, 0.36, -0.315);
+  spine.add(packStrip);
+  bulkPart(packStrip, 0.25, 0, 0);
+  const packRings = [];
+  for (const sgn of [-1, 1]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 10, 28), ringMetal);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(sgn * 0.09, 0.075, -0.22);
+    spine.add(ring);
+    bulkPart(ring, 0.25, 0.25, 0.25);
+    packRings.push(ring);
+  }
+  /* the soft blue light at the pack that follows the mains */
+  const packLight = new THREE.PointLight(BLUE, 0, 2.5, 2);
+  packLight.position.set(0, 0.10, -0.40);
+  spine.add(packLight);
 
   /* the set: centre at spine-local 0.90 (world 0.95 full, 0.96 chest-up) */
   head.position.set(0, 0.90, 0.15);   /* forward, so the collar sits inside the cabinet behind the frame */
@@ -587,10 +617,16 @@ export function makeCRT(THREE, opts = {}) {
   const handMeshes = [];
   const shoulderJoints = [];
   const ball = (parent, r, y, gain) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), jointMat);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 16), jointMat);
     m.position.set(0, y, 0);
     parent.add(m);
     bulkPart(m, gain, gain, gain);
+    /* a thin blue ring around the joint */
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 0.96, r * 0.09, 8, 32), blueMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0, y, 0);
+    parent.add(ring);
+    bulkPart(ring, gain, gain, gain);
     return m;
   };
   const tube = (parent, r, len, y, gain) => {
@@ -604,20 +640,19 @@ export function makeCRT(THREE, opts = {}) {
     const side = sgn > 0 ? 'R' : 'L';
     const sh = jointOf('shoulder' + side, spine, sgn * 0.245, 0.44, 0);
     shoulderJoints.push([sh, sgn * 0.245]);
-    ball(sh, 0.072, -0.01, 0.35);
-    tube(sh, 0.052, 0.17, -0.15, 0.35);
-    const el = jointOf('elbow' + side, sh, 0, -0.30, 0);
-    ball(el, 0.062, 0, 0.3);
-    tube(el, 0.046, 0.14, -0.11, 0.2);
-    /* wrist cuff ring, then one rounded mitt */
-    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.011, 8, 24), jointMat);
+    ball(sh, 0.088, -0.01, 0.35);
+    tube(sh, 0.056, 0.12, -0.14, 0.35);
+    const el = jointOf('elbow' + side, sh, 0, -0.26, 0);
+    ball(el, 0.078, 0, 0.3);
+    tube(el, 0.05, 0.10, -0.10, 0.2);
+    /* wrist cuff ring in blue, then one round ball mitt */
+    const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.011, 8, 24), blueMat);
     cuff.rotation.x = Math.PI / 2;
-    cuff.position.set(0, -0.215, 0);
+    cuff.position.set(0, -0.19, 0);
     el.add(cuff);
     bulkPart(cuff, 0.2, 0.2, 0.2);
-    const mitt = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.05, 6, 16), extremity);
-    mitt.scale.set(1.0, 1.0, 0.8);
-    mitt.position.set(0, -0.275, 0.0);
+    const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 16), extremity);
+    mitt.position.set(0, -0.255, 0.0);
     el.add(mitt);
     bulkPart(mitt, 0.3, 0.1, 0.3);
     mitt.userData.sgn = sgn;
@@ -627,26 +662,28 @@ export function makeCRT(THREE, opts = {}) {
 
   /* legs: hip ball, thigh tube, knee ball, shin tube, block boot. Full variant only. */
   const shoes = [];
+  const soleLines = [];
   if (full) {
     for (const sgn of [-1, 1]) {
       const side = sgn > 0 ? 'R' : 'L';
-      const hip = jointOf('hip' + side, pelvis, sgn * 0.10, -0.03, 0);
-      ball(hip, 0.095, -0.01, 0.35);
-      tube(hip, 0.072, 0.26, -0.22, 0.35);
-      const kn = jointOf('knee' + side, hip, 0, -0.44, 0);
-      ball(kn, 0.08, 0, 0.3);
-      tube(kn, 0.058, 0.24, -0.20, 0.2);
-      /* boot: a rounded block with the sole line */
-      const bootShape = roundedRect(-0.075, -0.06, 0.15, 0.12, 0.035);
-      const boot = new THREE.Mesh(new THREE.ExtrudeGeometry(bootShape, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 3, curveSegments: 6 }), extremity);
-      boot.position.set(0, -0.42, -0.07);
+      const hip = jointOf('hip' + side, pelvis, sgn * 0.115, -0.04, 0);
+      ball(hip, 0.11, -0.01, 0.35);
+      tube(hip, 0.078, 0.10, -0.15, 0.35);
+      const kn = jointOf('knee' + side, hip, 0, -0.30, 0);
+      ball(kn, 0.095, 0, 0.3);
+      tube(kn, 0.066, 0.08, -0.12, 0.2);
+      /* boot: a thick rounded block with the blue sole line */
+      const bootShape = roundedRect(-0.095, -0.075, 0.19, 0.15, 0.05);
+      const boot = new THREE.Mesh(new THREE.ExtrudeGeometry(bootShape, { depth: 0.20, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.025, bevelSegments: 4, curveSegments: 8 }), extremity);
+      boot.position.set(0, -0.30, -0.08);
       kn.add(boot);
-      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.26), sole);
-      soleM.position.set(0, -0.485, 0.045);
+      const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.28), sole);
+      soleM.position.set(0, -0.39, 0.045);
       kn.add(soleM);
-      const line = new THREE.Mesh(new THREE.BoxGeometry(0.156, 0.006, 0.266), soleLine);
-      line.position.set(0, -0.473, 0.045);
+      const line = new THREE.Mesh(new THREE.BoxGeometry(0.196, 0.01, 0.286), soleLine);
+      line.position.set(0, -0.372, 0.045);
       kn.add(line);
+      soleLines.push(line);
       shoes.push(boot, soleM, line);
       bulkPart(boot, 0.3, 0.1, 0.05); bulkPart(soleM, 0.3, 0, 0.05); bulkPart(line, 0.3, 0, 0.05);
     }
@@ -709,8 +746,8 @@ export function makeCRT(THREE, opts = {}) {
   const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (full) {
     const warm = new THREE.Color(0xffd8bc);
-    const plumeCol = accent.clone().lerp(new THREE.Color(0xffffff), 0.35);
-    const retroCol = accent.clone().lerp(warm, 0.75);
+    const plumeCol = BLUE.clone();
+    const retroCol = BLUE.clone().lerp(new THREE.Color(0xffffff), 0.25);
     const streakTex = streakTexture(THREE);
     const plumeGeo = new THREE.ConeGeometry(1, 1, 18, 1, true);
     plumeGeo.rotateX(Math.PI);
@@ -789,8 +826,8 @@ export function makeCRT(THREE, opts = {}) {
     const Rt = new THREE.Vector3(1, 0, 0), Lf = new THREE.Vector3(-1, 0, 0);
     const SPLAY = 6 * D2R;
     /* mains out of the base of the pack, splayed so they clear the legs */
-    addPlume('main', spine, -0.09, 0.03, -0.25, new THREE.Vector3(-Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
-    addPlume('main', spine, 0.09, 0.03, -0.25, new THREE.Vector3(Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.76, 0.055, { light: true, sparks: true, streak: true });
+    addPlume('main', spine, -0.09, 0.075, -0.22, new THREE.Vector3(-Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.2, 0.075, { light: true, sparks: true, streak: true });
+    addPlume('main', spine, 0.09, 0.075, -0.22, new THREE.Vector3(Math.sin(SPLAY), -Math.cos(SPLAY), 0), 1.2, 0.075, { light: true, sparks: true, streak: true });
     /* side puffers at the hips: left thrust fires from the right hip */
     addPlume('left', pelvis, 0.19, -0.05, 0, Rt, 0.3, 0.028);
     addPlume('right', pelvis, -0.19, -0.05, 0, Lf, 0.3, 0.028);
@@ -820,6 +857,10 @@ export function makeCRT(THREE, opts = {}) {
     brake: { spine: [0.25, 0, 0], head: [-0.175, 0, 0],
       shoulder: s => [0.10, s * 0.30, s * 1.40], elbow: s => [0.0, 0, s * 0.05],
       hip: s => [0.28, 0, s * 0.60], knee: s => [0.75, 0, 0] },
+    /* hover: upright under the jetpack, legs down and a little apart, arms out for balance */
+    hover: { spine: [0.04, 0, 0], head: [0.06, 0, 0],
+      shoulder: s => [0.05, 0, s * 0.45], elbow: s => [-0.35, 0, s * 0.10],
+      hip: s => [-0.15, 0, s * 0.10], knee: s => [0.30, 0, 0] },
     /* brace: the touchdown crouch, knees bent 55 deg, arms out low, set pitched down 8 deg */
     brace: { spine: [0.15, 0, 0], head: [0.14, 0, 0],
       shoulder: s => [0.10, 0, s * 0.60], elbow: s => [-0.20, 0, s * 0.05],
@@ -828,7 +869,7 @@ export function makeCRT(THREE, opts = {}) {
       shoulder: s => [-1.30, 0, -s * 0.25], elbow: s => [-1.10, 0, s * 0.35],
       hip: s => [-1.75, 0, s * 0.18], knee: s => [2.25, 0, 0] },
   };
-  const poseW = { stand: full ? 0 : 1, fall: full ? 1 : 0, brake: 0, tuck: 0, brace: 0 };
+  const poseW = { stand: full ? 0 : 1, fall: full ? 1 : 0, brake: 0, tuck: 0, brace: 0, hover: 0 };
   const JOINT_K = 15, HEAD_K = 14;
   const jointNames = ['spine', 'head', 'shoulderR', 'shoulderL', 'elbowR', 'elbowL', 'hipR', 'hipL', 'kneeR', 'kneeL'];
   const JS = {};
@@ -855,15 +896,25 @@ export function makeCRT(THREE, opts = {}) {
   }
 
   /* ----- landing and grounded idle ----- */
-  let landT = Infinity, landS = 0, landStood = false;
+  let landT = Infinity, landS = 0, landStage = 0;
   let chaseT = Infinity;
   let groundedOn = false, groundedAmt = 0;
+  let landMain = 0;          /* the landing's own demand on the mains, on top of setThrust */
+  let landLift = 0;          /* hover height during the burn */
+  let soleFlash = 0;
+  const LAND_TOUCH = 0.70, LAND_IMPACT = 0.85, LAND_STAND = 1.0, LAND_PUFF = 1.35;
   function land(strength) {
     landS = strength == null ? 1 : Math.min(Math.max(+strength || 0, 0), 1);
     landT = 0;
-    landStood = false;
-    if (REDUCED) { setPose('stand', 1); landT = Infinity; return; }
-    setPose('brace', 1);
+    landStage = 0;
+    if (REDUCED) { setPose('stand', 1); groundedOn = true; landT = Infinity; return; }
+    setPose('hover', 1);
+  }
+  function landPhase() {
+    if (landT === Infinity) return null;
+    if (landT < LAND_TOUCH) return 'burn';
+    if (landT < LAND_STAND) return 'touch';
+    return 'stand';
   }
   function setGrounded(on) { groundedOn = !!on; }
 
@@ -1027,24 +1078,42 @@ export function makeCRT(THREE, opts = {}) {
     groundedAmt += ((groundedOn ? 1 : 0) - groundedAmt) * Math.min(1, dt / 0.5);
     const zeroG = 1 - groundedAmt;
 
-    /* landing timeline: brace at once, impact at 180 ms, rise into stand from 320 ms, settle */
-    let squash = 0, settle = 0, impactNow = false;
+    /* landing timeline, three beats:
+       burn 0..0.70: hover pose, mains hard down, a hover wobble, held 0.30 above the ground
+       touch 0.70..1.0: mains cut, the drop, impact at 0.85 with the squash, soles flash, pack dims
+       stand 1.0..: rise into stand with the settle, grounded idle, a sign-off puff at 1.35 */
+    let squash = 0, settle = 0;
+    landMain = 0; soleFlash = Math.max(0, soleFlash - dt / 0.25);
     if (landT !== Infinity) {
       const prev = landT;
       landT += dt;
-      if (prev < 0.18 && landT >= 0.18) { impactNow = true; chaseT = 0; blinkT = 0; sway.z -= 0.10 * landS; sway.x += 0.05 * landS; }
-      if (landT >= 0.32 && !landStood) { landStood = true; setPose('stand', 1); }
-      const tau = landT - 0.18;
+      if (landT < LAND_TOUCH) {
+        landMain = landS * (0.85 + 0.15 * Math.sin(t * 23.0) * Math.sin(t * 17.0));
+        const ramp = Math.min(1, landT / 0.25);
+        landLift = 0.30 * ramp + 0.012 * Math.sin(t * TAU / 0.7) * ramp;
+      } else if (landT < LAND_STAND) {
+        /* the drop: 0.30 in 150 ms under gravity, then the ground */
+        const f = Math.min(1, (landT - LAND_TOUCH) / (LAND_IMPACT - LAND_TOUCH));
+        landLift = 0.30 * (1 - f * f);
+        if (prev < LAND_TOUCH) setPose('brace', 1);
+        if (prev < LAND_IMPACT && landT >= LAND_IMPACT) { chaseT = 0; blinkT = 0; soleFlash = 1; sway.z -= 0.10 * landS; sway.x += 0.05 * landS; }
+      } else {
+        landLift = 0;
+        if (landStage < 1) { landStage = 1; setPose('stand', 1); groundedOn = true; }
+        if (landT >= LAND_PUFF && landT < LAND_PUFF + 0.16) landMain = 0.35 * landS;
+      }
+      const tau = landT - LAND_IMPACT;
       if (tau >= 0) {
         squash = (tau < 0.04 ? tau / 0.04 : Math.exp(-(tau - 0.04) * 8) * Math.cos((tau - 0.04) * TAU / 0.2)) * landS;
         settle = Math.exp(-tau * 2.2) * (Math.sin(tau * TAU / 0.9) + 0.6 * Math.sin(tau * TAU / 1.4)) * landS;
       }
-      if (landT > 3.0) landT = Infinity;
-    }
-    rig.rotation.set(rot.x, rot.y, rot.z + 0.022 * settle);
+      if (landT > 3.5) landT = Infinity;
+    } else landLift = 0;
+    const wobble = landT !== Infinity && landT < LAND_TOUCH ? 0.02 * landS * Math.sin(t * TAU / 0.9) * Math.sin(t * TAU / 1.7) : 0;
+    rig.rotation.set(rot.x + wobble * 0.6, rot.y, rot.z + 0.022 * settle + wobble);
     rig.scale.set(1 + 0.03 * squash, 1 - 0.06 * squash, 1 + 0.03 * squash);
     /* breathing: the zero-g bob fades out when grounded, a weight shift takes over */
-    rig.position.y = zeroG * (0.010 * Math.sin(t * TAU / 5.3) + 0.006 * Math.sin(t * TAU / 8.9 + 1.0)) + 0.012 * settle;
+    rig.position.y = zeroG * (0.010 * Math.sin(t * TAU / 5.3) + 0.006 * Math.sin(t * TAU / 8.9 + 1.0)) + 0.012 * settle + landLift;
     J.pelvis.rotation.z = groundedAmt * 1.5 * D2R * Math.sin(t * TAU / 5.3);
 
     /* look: the spring, stiffer for 300 ms after a poke */
@@ -1089,7 +1158,7 @@ export function makeCRT(THREE, opts = {}) {
         else if (n === 'spine') { tg[0] += -0.06 * dA * fw; tg[2] += 0.05 * dB * fw; }
       }
       /* the brace before a touchdown has to happen in 180 ms, so it runs a much stiffer spring */
-      const bracing = landT < 0.32;
+      const bracing = landT < LAND_STAND;
       const K = n === 'head' ? (bracing ? 60 : HEAD_K) : (bracing ? 150 : JOINT_K), C = 2 * Math.sqrt(K);
       j.vx += (-K * (j.x - tg[0]) - C * j.vx) * dt; j.x += j.vx * dt;
       j.vy += (-K * (j.y - tg[1]) - C * j.vy) * dt; j.y += j.vy * dt;
@@ -1200,8 +1269,11 @@ export function makeCRT(THREE, opts = {}) {
     glowColor.set(0xdfe6ea);
     if (useFace) glowColor.lerp(faceAvg, 0.6);
     glowColor.lerp(tmp.copy(accent), 0.10);
+    /* the glass rim picks up a blue glow while the mains fire */
+    const mainsGlow = plumes.length ? thrust.main : 0;
+    glowColor.lerp(BLUE, 0.7 * mainsGlow);
     glowU.uColor.value.copy(glowColor);
-    glowU.uAlpha.value = 0.08 * energy * hum * (1 - 0.95 * offAmt);
+    glowU.uAlpha.value = (0.08 * energy + 0.16 * mainsGlow) * hum * (1 - 0.95 * offAmt);
     light.color.copy(glowColor);
     light.intensity = (0.7 + 0.9 * energy) * hum * (1 - 0.95 * offAmt) + (pokeT < 0.04 ? 2 : 0);
     if (landT !== Infinity && landT >= 0.18 && landT < 0.30) {
@@ -1216,13 +1288,17 @@ export function makeCRT(THREE, opts = {}) {
     /* boosters */
     if (plumes.length) {
       const k1 = 1 - Math.exp(-dt / 0.09);
-      for (const k in thrust) thrust[k] += (thrustT[k] - thrust[k]) * k1;
+      for (const k in thrust) thrust[k] += (Math.max(thrustT[k], k === 'main' ? landMain : 0) - thrust[k]) * k1;
+      packLight.intensity = ((darkKnit ? 2.2 : 0.6) * thrust.main + 0.10) * lightScale * lightScale;
+      packLight.distance = 2.5 * lightScale;
+      for (const m of soleLines) m.material = soleFlash > 0.02 ? (m.userData.hot || (m.userData.hot = new THREE.MeshStandardMaterial({ color: 0x0a2233, emissive: BLUE.clone(), emissiveIntensity: 1.1 + 4 * soleFlash }))) : blueMat;
+      if (soleFlash > 0.02) for (const m of soleLines) m.material.emissiveIntensity = 1.1 + 4 * soleFlash;
       const f1 = REDUCED ? 0 : Math.sin(t * TAU * 17.0), f2 = REDUCED ? 0 : Math.sin(t * TAU * 23.0);
       for (const pl of plumes) {
         const a = thrust[pl.channel];
         const on = a > 0.01;
         pl.outer.visible = pl.core.visible = on;
-        if (pl.light) { pl.light.intensity = 0.7 * a * lightScale * lightScale; pl.light.distance = 2 * lightScale; }
+        if (pl.light) { pl.light.intensity = (darkKnit ? 0.7 : 0.35) * a * lightScale * lightScale; pl.light.distance = 2 * lightScale; }
         if (!on) { if (pl.sparks) pl.sparks.visible = false; continue; }
         const swell = a * a * (3 - 2 * a);
         const lj = 1 + 0.14 * a * (0.5 * f1 + 0.5 * f2);
@@ -1231,8 +1307,8 @@ export function makeCRT(THREE, opts = {}) {
         const Wd = pl.rad * (0.6 + 0.4 * swell) * wj;
         pl.outer.scale.set(Wd, L, Wd);
         const isMain = pl.channel === 'main';
-        pl.core.scale.set(Wd * 0.45, L * (isMain ? 0.55 : 0.4), Wd * 0.45);
-        pl.core.material.opacity = isMain ? 0.65 : 0.45;
+        pl.core.scale.set(Wd * (isMain ? 0.6 : 0.45), L * (isMain ? 0.5 : 0.4), Wd * (isMain ? 0.6 : 0.45));
+        pl.core.material.opacity = isMain ? 0.5 : 0.45;
         pl.outer.material.opacity = 0.20 * (0.5 + 0.5 * a);
         if (pl.streak) {
           const sv = Math.min(Math.max((a - 0.6) / 0.3, 0), 1);
@@ -1265,7 +1341,7 @@ export function makeCRT(THREE, opts = {}) {
   return {
     group, update, setFace, lookAt, hover, poke, glass: screen,
     setPose, setTumble, setScreen, setFacing, setScale,
-    setThrust, setSuitTint, setPointer, setIntent, setRim, land, setGrounded, setBulk,
+    setThrust, setSuitTint, setPointer, setIntent, setRim, land, landPhase, setGrounded, setBulk,
     joints: J, full,
   };
 }

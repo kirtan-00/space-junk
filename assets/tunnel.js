@@ -23,6 +23,9 @@
      tunnel.inverse                  // 0..1 current weight of the 'inverse' look; page drops bloom/RGB shift and inverts its chrome above 0.5
      tunnel.runLog()                 // dealt universes so far: [{pattern, pair}]
      tunnel.setMemories([{texture, kind: 'video' | 'photo'}, ...])   // memory look panels; empty = NO SIGNAL cards; max 12 textures live
+     tunnel.setLandingPoint(x, z)    // where the figure comes to rest (impact() sets it to camera z - 40); the flat patch and hills key off it
+     tunnel.setPlane('bliss' | 'grid')   // what setLook('landing') resolves to (default bliss); setLook('landing-grid') forces the wire floor
+     tunnel.matrixExit(secs)         // glyph rain persists over the landing and drains away over secs, chromatic split at the start
      tunnel.plungeStage(name, cutSecs)   // plunge cut list: cubes | lattice | stairs | inverse | rings | shards | cubes-wave | collapse; hard cut by default
      tunnel.deal()                   // plunge: morph every solid to the next shape (180 ms) and snap the colour pair from the deck
      tunnel.impact(strength)         // landing: floor ring 0 -> 90 units over 700 ms, grid brightens with a damped bounce
@@ -156,7 +159,31 @@ const RIPPLE_GAIN = 2.2;                 // peak brightness added by a full-stre
 const RIPPLE_AHEAD = [90, 420];          // random z range ahead of the camera for a ripple
 const RIPPLE_MAX = 4;                    // concurrent ripples
 
-const LOOK_NAMES = ['cage', 'tessellation', 'starfield', 'nebula', 'wiregrid', 'blackout', 'inverse', 'memory', 'plunge', 'landing'];
+const LOOK_NAMES = ['cage', 'tessellation', 'starfield', 'nebula', 'wiregrid', 'blackout', 'inverse', 'memory', 'plunge', 'landing', 'bliss'];
+
+const GLYPH_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ:./#%+-<>*=[]@&';
+const GLYPH_ATLAS = [16, 8];             // atlas grid, 512 x 256 canvas
+const GLYPH_CELL = 7;                    // rain glyph size, units
+const GLYPH_WORD_CELL = 9;               // word glyph size
+const GLYPH_LANES = 7;                   // rain lanes per wall
+const GLYPH_DROPS = 5;                   // concurrent drops per lane
+const GLYPH_SEG = 700;
+const GLYPH_SPEED = [60, 240];           // drop speed relative to the camera, units per second
+const GLYPH_TAIL = [10, 26];             // tail length in cells
+const GLYPH_TAIL_GAIN = 1.5;             // tail brightness
+const GLYPH_FLIP = 6;                    // glyph changes per second
+const GLYPH_WORDS = ['RENDER', 'TAKE 2', '24 FPS', 'ROLL', 'CUT', 'EXPORT', 'DEPLOY', 'COMMIT', 'ACTION', 'SHIP IT', 'REEL', 'FRAME', 'LIGHT', 'PUSH', 'MERGE', 'LOG',
+  '24', '1080', '4K', '00:00:23:14', '2.39:1', '48KHZ'];
+const GLYPH_WORD_COPIES = 2;             // placements per word per segment
+const GLYPH_MAX = 9000;                  // instance capacity (rain + words, times three for the chromatic split)
+const GLYPH_INSET = 1.5;
+const EXIT_SPLIT = 0.3;                  // seconds of chromatic split at the start of a matrix exit
+const EXIT_SPLIT_OFF = 1.4;              // units
+
+const BLISS = {size: 2400, segs: 80, recentre: 200, base: -12, hills: [[-320, -520, 380, 62], [300, -700, 300, 48], [-60, -1050, 520, 74]],   // [x, z, radius, height]
+  flat: [30, 130], low: 0x3b9440, high: 0x86d65a, maxLum: 0.8, sky: {zenith: 0x1f5fd0, mid: 0x4a90e2, horizon: 0xb7d9f2, radius: 1200, maxLum: 0.85},
+  sun: {color: 0xffffff, intensity: 1.6, dir: [0.7, 0.9, 0.5]}, hemi: {sky: 0x9ec5ff, ground: 0x4f7a2f, intensity: 0.6}, clouds: 12, cloudOp: 0.85, fogColor: 0xb7d9f2};
+const BLISS_PUFF = {radius: 60, secs: 0.8, color: 0x8f9a86, op: 0.35};   // green-grey dust, not a glow
 
 const MEM_PER_FACE = 1;                  // panels per wall face per MEM_PITCH units (about 8 on screen)
 const MEM_PITCH = 160;
@@ -186,7 +213,7 @@ const PLUNGE_SMEAR_OFF = 0.6;
 const PLUNGE_STREAK_MAX = 3;             // z stretch cap in the plunge so solids still read as solids at speed
 const PLUNGE_OUTER = 0.7;                // outer 30% starts at this fraction of the shell radius
 const PLUNGE_CAP = 1000;                 // baked solids capacity per shape set (plus smear copies)
-const PLUNGE_STAGES = ['cubes', 'lattice', 'stairs', 'inverse', 'rings', 'shards', 'cubes-wave', 'collapse'];
+const PLUNGE_STAGES = ['cubes', 'lattice', 'stairs', 'inverse', 'rings', 'shards', 'glyphs', 'cubes-wave', 'collapse'];   // cubes-wave kept, no longer in the cut list
 const PLUNGE_HUGE_FRAC = 0.06;           // solids that are huge (60+ units) and ride the outer shell
 const PLUNGE_HUGE_MUL = 3.2;
 const PLUNGE_INK_MUL = 1.8;              // heavier cubes in the inverse stage
@@ -1061,7 +1088,7 @@ export function makeTunnel(THREE, opts = {}) {
     pSpin[i] = 0.2 + hash(i, 168) * 0.6; pPh[i] = hash(i, 169) * Math.PI * 2; pSecond[i] = hash(i, 170) < PLUNGE_SECOND_FRAC ? 1 : 0;
   }
   const plunge = {shape: 0, prev: 0, morph: 9, pair: pairDeck.last, colA: new THREE.Color(), colB: new THREE.Color(), stage: null, stageT0: 0, cut: 0, invT: 9, flashT: 9};
-  const _inkA = new THREE.Color(), _inkB = new THREE.Color(), _pc2 = new THREE.Color();
+  const _inkA = new THREE.Color(), _inkB = new THREE.Color(), _pc2 = new THREE.Color(), tmpFog = new THREE.Color();
   const pInkSkip = new Uint8Array(PLUNGE_N); for (let i = 0; i < PLUNGE_N; i++) pInkSkip[i] = hash(i, 174) > PLUNGE_INK_FRAC ? 1 : 0;
   const pHuge = new Uint8Array(PLUNGE_N); for (let i = 0; i < PLUNGE_N; i++) pHuge[i] = hash(i, 173) < PLUNGE_HUGE_FRAC ? 1 : 0;
   function plungeStage(name, cutSecs) {
@@ -1170,10 +1197,165 @@ export function makeTunnel(THREE, opts = {}) {
   function impact(strength, atZ) {
     impactState.age = 0; impactState.strength = clamp01(strength == null ? 1 : strength);
     impactState.z = atZ == null ? state.camZ - 35 : atZ; impactState.x = 0;
+    setLandingPoint(0, atZ == null ? state.camZ - 40 : atZ);   // the flat patch is where the figure comes to rest
   }
-  const landingY = () => LAND_Y;
+  const landingY = () => planeCtl.plane === 'bliss' ? BLISS.base + blissHeight(landing.x, landing.z) : LAND_Y;
 
+  /* ---- glyph rain: one atlas, one InstancedMesh of character quads on the eight walls ---- */
+  const glyphAtlas = (() => {
+    const [gc, gr] = GLYPH_ATLAS, cw = 32, c = document.createElement('canvas'); c.width = gc * cw; c.height = gr * cw;
+    const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff'; g.font = 'bold 26px ui-monospace, Menlo, Consolas, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < GLYPH_CHARS.length; i++) g.fillText(GLYPH_CHARS[i], (i % gc) * cw + cw / 2, Math.floor(i / gc) * cw + cw / 2 + 1);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.minFilter = THREE.LinearMipmapLinearFilter; disposables.push(t); return t;
+  })();
+  const glyphCellUV = ch => { const i = Math.max(0, GLYPH_CHARS.indexOf(ch)); return [(i % GLYPH_ATLAS[0]) / GLYPH_ATLAS[0], 1 - (Math.floor(i / GLYPH_ATLAS[0]) + 1) / GLYPH_ATLAS[1]]; };
+  const glyphGeo = new THREE.PlaneGeometry(1, 1);
+  const glyphCellAttr = new THREE.InstancedBufferAttribute(new Float32Array(GLYPH_MAX * 2), 2); glyphCellAttr.setUsage(THREE.DynamicDrawUsage);
+  glyphGeo.setAttribute('aCell', glyphCellAttr); disposables.push(glyphGeo);
+  const glyphMat = new THREE.MeshBasicMaterial({map: glyphAtlas, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false, side: THREE.DoubleSide});
+  glyphMat.onBeforeCompile = sh => {
+    bendCompile(sh);
+    sh.vertexShader = sh.vertexShader.replace('void main() {', 'attribute vec2 aCell;\nvoid main() {')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n vMapUv = uv * vec2(' + (1 / GLYPH_ATLAS[0]).toFixed(5) + ', ' + (1 / GLYPH_ATLAS[1]).toFixed(5) + ') + aCell;');
+  };
+  glyphMat.customProgramCacheKey = () => 'glyph'; disposables.push(glyphMat);
+  const glyphs = new THREE.InstancedMesh(glyphGeo, glyphMat, GLYPH_MAX);
+  glyphs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  glyphs.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GLYPH_MAX * 3), 3); glyphs.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  glyphs.frustumCulled = false; glyphs.visible = false; glyphs.renderOrder = 20; group.add(glyphs);
+  const DROP_N = 8 * GLYPH_LANES * GLYPH_DROPS;
+  const dZ0 = new Float32Array(DROP_N), dSpeed = new Float32Array(DROP_N), dTail = new Uint8Array(DROP_N), dSeed = new Float32Array(DROP_N);
+  for (let i = 0; i < DROP_N; i++) { dZ0[i] = hash(i, 181) * GLYPH_SEG; dSpeed[i] = GLYPH_SPEED[0] + hash(i, 182) * (GLYPH_SPEED[1] - GLYPH_SPEED[0]); dTail[i] = GLYPH_TAIL[0] + Math.floor(hash(i, 183) * (GLYPH_TAIL[1] - GLYPH_TAIL[0])); dSeed[i] = hash(i, 184) * 100; }
+  const wordSlots = [];                  // {word, wall, u, z0}
+  GLYPH_WORDS.forEach((w, wi) => { for (let c = 0; c < GLYPH_WORD_COPIES; c++) { const k = wi * 7 + c * 3; wordSlots.push({word: w, wall: Math.floor(hash(k, 185) * 8), u: (hash(k, 186) - 0.5) * 50, z0: -hash(k, 187) * GLYPH_SEG}); } });
+  const _gx = new THREE.Vector3(), _gy = new THREE.Vector3(), _gz = new THREE.Vector3(), _gm = new THREE.Matrix4(), _gq = new THREE.Quaternion();
+  function glyphBasis(wall) {            // reading direction along the corridor, up across the wall, facing the axis; right-handed so the front face is inward
+    const ak = (wall + 0.5) * Math.PI / 4, nx = Math.cos(ak), ny = Math.sin(ak), tx = -ny, ty = nx;
+    _gy.set(tx, ty, 0); if (ty < -0.05 || (Math.abs(ty) <= 0.05 && tx < 0)) _gy.negate();
+    _gz.set(-nx, -ny, 0); _gx.crossVectors(_gy, _gz); _gm.makeBasis(_gx, _gy, _gz); _gq.setFromRotationMatrix(_gm);
+    return [nx, ny, tx, ty];
+  }
+  const exitCtl = {t0: -99, secs: 0, active: false};
+  function matrixExit(secs) { exitCtl.t0 = state.t; exitCtl.secs = Math.max(0.2, secs == null ? 1.5 : secs); exitCtl.active = true; }
+  let glyphCount = 0;
+  function putGlyph(x, y, z, size, cellUV, col, offX, offY) {
+    if (glyphCount >= GLYPH_MAX) return;
+    const i = glyphCount++, arr = glyphs.instanceMatrix.array, ca = glyphs.instanceColor.array, cu = glyphCellAttr.array;
+    _o.quaternion.copy(_gq); _o.position.set(x + (offX || 0), y + (offY || 0), z); _o.scale.set(size, size, 1); _o.updateMatrix(); _o.matrix.toArray(arr, i * 16);
+    ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; cu[i * 2] = cellUV[0]; cu[i * 2 + 1] = cellUV[1];
+  }
+  const _ga = new THREE.Color(), _gb = new THREE.Color(), _gh = new THREE.Color();
+  function bakeGlyphs(camZ, gt, primary, secondary, weight, exitT, exitSecs, split) {
+    glyphCount = 0;
+    const drain = exitT >= 0, dist = OCT_APOTHEM - GLYPH_INSET;
+    _gh.copy(primary).lerp(tmpB.set(1, 1, 1), 0.75);
+    const copies = split > 0 ? 3 : 1;
+    const emit = (wall, u, z, size, cellUV, col, laneSeed) => {
+      // matrix exit: cells drop along world -y with a per-lane delay and fade out
+      let dy = 0, k = 1;
+      if (drain) { const te = exitT - laneSeed * 0.45 * exitSecs; if (te > 0) { dy = -60 * te * te; k = Math.max(0, 1 - te / (0.55 * exitSecs)); } }
+      if (k <= 0.01) return;
+      const [nx, ny, tx, ty] = glyphBasis(wall);
+      const x = nx * dist + tx * u, y = ny * dist + ty * u + dy;
+      if (copies === 1) putGlyph(x, y, z, size, cellUV, _ga.copy(col).multiplyScalar(k * weight));
+      else for (let c = 0; c < 3; c++) { const d = (c - 1) * EXIT_SPLIT_OFF * split; putGlyph(x + d * tx, y + d * ty, z, size, cellUV, _ga.copy(_rgb[c]).multiply(col).multiplyScalar(k * weight * 1.5)); }
+    };
+    for (let i = 0; i < DROP_N; i++) {
+      const wall = Math.floor(i / (GLYPH_LANES * GLYPH_DROPS)), lane = Math.floor(i / GLYPH_DROPS) % GLYPH_LANES;
+      const u = -30 + lane * 10 + (hash(i, 188) - 0.5) * 3;
+      const head = camZ + BEHIND - ((dZ0[i] + dSpeed[i] * gt) % GLYPH_SEG);
+      const L = dTail[i], flip = Math.floor(gt * GLYPH_FLIP + dSeed[i]);
+      for (let k = 0; k < L; k++) {
+        const z = head + k * GLYPH_CELL; if (z > camZ + BEHIND) break;
+        const ch = GLYPH_CHARS[Math.floor(hash(i * 131 + k, 190 + (flip % 7)) * GLYPH_CHARS.length)];
+        const f = Math.pow(1 - k / L, 1.1);
+        const col = k === 0 ? _gh : _gb.copy(k % 4 === 3 ? secondary : primary).multiplyScalar(GLYPH_TAIL_GAIN * f);
+        emit(wall, u, z, GLYPH_CELL, glyphCellUV(ch), col, hash(i, 189));
+      }
+    }
+    for (const ws of wordSlots) {
+      let z = ws.z0; while (z > camZ + BEHIND) z -= GLYPH_SEG; while (z < camZ + BEHIND - GLYPH_SEG) z += GLYPH_SEG; ws.z0 = z;
+      const [nx, ny, tx, ty] = glyphBasis(ws.wall), dir = _gx.z;   // reading direction along z for this wall
+      for (let j = 0; j < ws.word.length; j++) {
+        const ch = ws.word[j]; if (ch === ' ') continue;
+        const zj = z + dir * j * GLYPH_WORD_CELL; if (zj > camZ + BEHIND) continue;
+        emit(ws.wall, ws.u, zj, GLYPH_WORD_CELL, glyphCellUV(ch), _gb.copy(primary).lerp(tmpB.set(1, 1, 1), 0.45).multiplyScalar(1.3), hash(ws.wall * 7 + ws.u, 191));
+      }
+    }
+    glyphs.count = glyphCount;
+    glyphs.instanceMatrix.needsUpdate = true; glyphs.instanceColor.needsUpdate = true; glyphCellAttr.needsUpdate = true;
+  }
+
+  /* ---- bliss: a rolling green hill, a sky dome, clouds, sun ---- */
+  const blissGroup = new THREE.Group(); blissGroup.visible = false; group.add(blissGroup); looks.bliss.group = blissGroup;
+  const blissBase = {z: 0};
+  // Hills are a function of WORLD x/z placed around the landing point, so the field can be re-centred on the camera without swimming.
+  // The landing point is where the camera comes to rest: set by impact() (camera z minus 40) or setLandingPoint(x, z); until then, where setLook('bliss') was called.
+  const landing = {x: 0, z: -35, set: false};
+  const blissHeight = (wx, wz) => {      // world coordinates; flat within BLISS.flat[0] of the landing point
+    const x = wx - landing.x, z = wz - landing.z;
+    let h = 0; for (const [hx, hz, r, hh] of BLISS.hills) { const d2 = ((x - hx) ** 2 + (z - hz) ** 2) / (r * r); h += hh * Math.exp(-d2 * 1.6); }
+    return h * smooth(BLISS.flat[0], BLISS.flat[1], Math.hypot(x, z));
+  };
+  function setLandingPoint(x, z) { landing.x = x || 0; landing.z = z; landing.set = true; hillCentre.dirty = true; }
+  const hillGeo = new THREE.PlaneGeometry(BLISS.size, BLISS.size, BLISS.segs, BLISS.segs); hillGeo.rotateX(-Math.PI / 2);
+  hillGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(hillGeo.attributes.position.count * 3), 3));
+  hillGeo.attributes.position.setUsage(THREE.DynamicDrawUsage); hillGeo.attributes.color.setUsage(THREE.DynamicDrawUsage);
+  const hillBase = hillGeo.attributes.position.array.slice();   // flat template, local x/z
+  const hillCentre = {x: 0, z: 0, dirty: true};
+  function bakeHills(cx, cz) {
+    // Shading is BAKED into the vertex colours (Lambert from the sun plus a sky/ground hemisphere) on an unlit material:
+    // the host page runs no-decay key, fill and accent rim lights that push any lit green ground into clipped yellow.
+    const pos = hillGeo.attributes.position, col = hillGeo.attributes.color.array, lo = new THREE.Color(BLISS.low), hi = new THREE.Color(BLISS.high);
+    let hmax = 1; for (const h of BLISS.hills) hmax = Math.max(hmax, h[3]);
+    for (let i = 0; i < pos.count; i++) { const x = hillBase[i * 3], z = hillBase[i * 3 + 2]; pos.setXYZ(i, x, BLISS.base + blissHeight(cx + x, cz + z), z); }
+    hillGeo.computeVertexNormals();
+    const nrm = hillGeo.attributes.normal, sunDir = new THREE.Vector3(...BLISS.sun.dir).normalize();
+    const skyC = new THREE.Color(BLISS.hemi.sky), gndC = new THREE.Color(BLISS.hemi.ground), sunC = new THREE.Color(BLISS.sun.color);
+    for (let i = 0; i < pos.count; i++) {
+      const h = pos.getY(i) - BLISS.base, nx = nrm.getX(i), ny = nrm.getY(i), nz = nrm.getZ(i);
+      const lambert = Math.max(0, nx * sunDir.x + ny * sunDir.y + nz * sunDir.z);
+      _pc.copy(lo).lerp(hi, Math.pow(h / hmax, 0.8));
+      tmpA.copy(sunC).multiplyScalar(1.0 * lambert).add(tmpB.copy(gndC).lerp(skyC, 0.5 + 0.5 * ny).multiplyScalar(0.5));
+      _pc.multiply(tmpA);
+      const lum = 0.2126 * _pc.r + 0.7152 * _pc.g + 0.0722 * _pc.b; if (lum > BLISS.maxLum) _pc.multiplyScalar(BLISS.maxLum / lum);
+      col[i * 3] = _pc.r; col[i * 3 + 1] = _pc.g; col[i * 3 + 2] = _pc.b;
+    }
+    pos.needsUpdate = true; hillGeo.attributes.color.needsUpdate = true; hillGeo.attributes.normal.needsUpdate = true;
+    hillCentre.x = cx; hillCentre.z = cz; hillCentre.dirty = false;
+  }
+  const hillMat = new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: 1, toneMapped: false});
+  const hill = new THREE.Mesh(hillGeo, hillMat); hill.frustumCulled = false; blissGroup.add(hill); disposables.push(hillGeo, hillMat);
+  const skyGeo = new THREE.SphereGeometry(BLISS.sky.radius, 32, 16); disposables.push(skyGeo);
+  const skyMat = new THREE.ShaderMaterial({side: THREE.BackSide, depthWrite: false, fog: false, transparent: true,
+    uniforms: {uZenith: {value: new THREE.Color(BLISS.sky.zenith)}, uMid: {value: new THREE.Color(BLISS.sky.mid)}, uHorizon: {value: new THREE.Color(BLISS.sky.horizon)}, uOp: {value: 1}, uMaxLum: {value: BLISS.sky.maxLum}},
+    vertexShader: 'varying float vY; void main(){ vY = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    // three-stop gradient; the result is clamped below the bloom threshold so the sky itself never blooms
+    fragmentShader: 'uniform vec3 uZenith, uMid, uHorizon; uniform float uOp, uMaxLum; varying float vY; void main(){ float t = clamp(vY, 0.0, 1.0); vec3 c = t < 0.25 ? mix(uHorizon, uMid, t / 0.25) : mix(uMid, uZenith, pow((t - 0.25) / 0.75, 0.7)); float lum = dot(c, vec3(0.2126, 0.7152, 0.0722)); if (lum > uMaxLum) c *= uMaxLum / lum; gl_FragColor = vec4(c, uOp); }'});
+  disposables.push(skyMat);
+  const sky = new THREE.Mesh(skyGeo, skyMat); sky.renderOrder = -10; sky.frustumCulled = false; blissGroup.add(sky);
+  const cloudGeo = new THREE.PlaneGeometry(260, 80); disposables.push(cloudGeo);
+  const cloudMat = new THREE.MeshBasicMaterial({map: memGlowTex, alphaMap: memGlowTex, color: 0xd9d9d9, transparent: true, opacity: BLISS.cloudOp, depthWrite: false, fog: false, toneMapped: false});   // normal blending, kept under the bloom threshold
+  disposables.push(cloudMat);
+  const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, BLISS.clouds); clouds.frustumCulled = false; blissGroup.add(clouds);
+  const cloudPos = []; for (let i = 0; i < BLISS.clouds; i++) cloudPos.push([(hash(i, 201) - 0.5) * 1600, 150 + hash(i, 202) * 220, -420 - hash(i, 203) * 600, 0.7 + hash(i, 204) * 0.9]);
+  const sun = new THREE.DirectionalLight(BLISS.sun.color, BLISS.sun.intensity); sun.position.set(0.7, 0.9, 0.5);
+  const hemi = new THREE.HemisphereLight(BLISS.hemi.sky, BLISS.hemi.ground, BLISS.hemi.intensity);
+  const blissKey = new THREE.DirectionalLight(LAND_KEY.color, LAND_KEY.intensity); blissKey.position.set(-1, 0.8, 1);
+  const blissFill = new THREE.DirectionalLight(LAND_FILL.color, LAND_FILL.intensity); blissFill.position.set(0.4, 0.5, -1);
+  blissGroup.add(sun, hemi, blissKey, blissFill);
+  const puffGeo = new THREE.PlaneGeometry(2, 2); puffGeo.rotateX(-Math.PI / 2); disposables.push(puffGeo);
+  const puffMat = new THREE.MeshBasicMaterial({map: memGlowTex, alphaMap: memGlowTex, color: BLISS_PUFF.color, transparent: true, opacity: 0, depthWrite: false, toneMapped: false});
+  disposables.push(puffMat);
+  const puff = new THREE.Mesh(puffGeo, puffMat); puff.visible = false; blissGroup.add(puff);
+
+  const planeCtl = {plane: 'bliss'};
+  function setPlane(name) { planeCtl.plane = name === 'grid' || name === 'landing-grid' ? 'grid' : 'bliss'; }
   function setLook(name, fadeSecs) {
+    if (name === 'landing') name = planeCtl.plane === 'bliss' ? 'bliss' : 'landing';
+    else if (name === 'landing-grid') name = 'landing';
+    if (name === 'bliss') { blissBase.z = state.camZ; if (!landing.set) { landing.x = 0; landing.z = state.camZ - 35; hillCentre.dirty = true; } }
     if (name != null && !looks[name]) throw new Error('unknown look ' + name);
     lookCtl.name = name; lookCtl.fade = fadeSecs == null ? LOOK_FADE : Math.max(0, fadeSecs);
   }
@@ -1228,13 +1410,13 @@ export function makeTunnel(THREE, opts = {}) {
     const starW = looks.starfield.w * openK + looks.wiregrid.w * openK * GRID_STAR_W;
     const nebW = looks.nebula.w * openK, gridW = looks.wiregrid.w * openK, blackW = looks.blackout.w * openK;
     const invW = looks.inverse.w;
-    const memW = looks.memory.w * openK, plungeW = looks.plunge.w * openK, landW = looks.landing.w * openK;
+    const memW = looks.memory.w * openK, plungeW = looks.plunge.w * openK, landW = looks.landing.w * openK, blissW = looks.bliss.w * openK;
     // inverse wipes the host scene's fog and background toward paper white (captured once, restored as the weight returns to 0)
     const sc = group.parent;
     if (sc && sc.fog && sc.fog.color) {
       if (!state.fog0) { state.fog0 = sc.fog.color.clone(); state.bg0 = sc.background && sc.background.isColor ? sc.background.clone() : null; }
-      sc.fog.color.copy(state.fog0).lerp(tmpB.setHex(INVERSE_BG), invW);
-      if (state.bg0 && sc.background && sc.background.isColor) sc.background.copy(state.bg0).lerp(tmpB.setHex(INVERSE_BG), invW);
+      sc.fog.color.copy(state.fog0).lerp(tmpB.setHex(INVERSE_BG), invW).lerp(tmpA.setHex(BLISS.fogColor), blissW * (1 - invW));
+      if (state.bg0 && sc.background && sc.background.isColor) sc.background.copy(state.bg0).lerp(tmpB.setHex(INVERSE_BG), invW).lerp(tmpA.setHex(BLISS.sky.horizon), blissW * (1 - invW));
     }
     updateMirror(camZ, mW, slow, reduced);
     group.visible = openK > 0.004;
@@ -1504,7 +1686,7 @@ export function makeTunnel(THREE, opts = {}) {
       const spin = reduced ? 0 : 1;
       const rOuter = PLUNGE_R[0] + (PLUNGE_R[1] - PLUNGE_R[0]) * PLUNGE_OUTER;
       const collapse = stage === 'collapse' ? smooth(0, PLUNGE_COLLAPSE_SECS, st) : 0;   // 0 -> 1 over the stage
-      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings';
+      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings' && stage !== 'glyphs';
       const offs = plungeSets.map(() => 0);
       const shapeIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.shape, prevIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.prev;
       if (useField) for (let i = 0; i < PLUNGE_N; i++) {
@@ -1630,6 +1812,48 @@ export function makeTunnel(THREE, opts = {}) {
       du.uWeight.value = landW * 0.3; du.uCamZ.value = camZ; du.uReduced.value = reduced ? 1 : 0; du.uHigh.value = high;
       du.uTintA.value.copy(accent); du.uTintB.value.setRGB(0.7, 0.7, 0.8);
     }
+
+    /* ---------- glyph rain (plunge stage 'glyphs', and the matrix exit overlay) ---------- */
+    {
+      const stageGlyphs = plungeGroup.visible && (plunge.stage === 'glyphs');
+      const exitT = exitCtl.active ? state.t - exitCtl.t0 : -1;
+      if (exitCtl.active && exitT > exitCtl.secs * 1.1) exitCtl.active = false;
+      glyphs.visible = stageGlyphs || exitCtl.active;
+      if (glyphs.visible) {
+        const split = exitCtl.active ? Math.max(0, 1 - exitT / EXIT_SPLIT) : 0;
+        const w = stageGlyphs ? plungeW * (plunge.cut > 0 && state.t - plunge.stageT0 < plunge.cut ? 0.35 + 0.65 * (state.t - plunge.stageT0) / plunge.cut : 1) : 1;
+        bakeGlyphs(camZ, reduced ? 0 : state.gt, plunge.colA, plunge.colB, w, exitCtl.active ? exitT : -1, exitCtl.secs, split);
+      }
+    }
+
+    /* ---------- bliss ---------- */
+    blissGroup.visible = blissW > 0.004;
+    if (blissGroup.visible) {
+      // the field rides with the camera in steps, ±1200 around it, rebuilt from the world-space height function so nothing swims
+      { const c = curve(camZ), cx = Math.round(c.x / BLISS.recentre) * BLISS.recentre, cz = Math.round(camZ / BLISS.recentre) * BLISS.recentre;
+        if (hillCentre.dirty || cx !== hillCentre.x || cz !== hillCentre.z) bakeHills(cx, cz);
+        hill.position.set(cx, 0, cz); }
+      hillMat.opacity = blissW; skyMat.uniforms.uOp.value = blissW;
+      sky.position.set(curve(camZ).x, curve(camZ).y, camZ);
+      const cArr = clouds.instanceMatrix.array;
+      for (let i = 0; i < BLISS.clouds; i++) {
+        const [cx, cy, cz, sc] = cloudPos[i], drift = reduced ? 0 : Math.sin(state.t * 0.05 + i) * 30;
+        _o.position.set(cx + drift, cy, landing.z + cz); _o.quaternion.identity(); _o.scale.set(sc, sc, 1); _o.updateMatrix(); _o.matrix.toArray(cArr, i * 16);
+      }
+      clouds.instanceMatrix.needsUpdate = true; cloudMat.opacity = BLISS.cloudOp * blissW;
+      sun.intensity = BLISS.sun.intensity * blissW; hemi.intensity = BLISS.hemi.intensity * blissW;
+      blissKey.intensity = LAND_KEY.intensity * blissW; blissFill.intensity = LAND_FILL.intensity * blissW;
+      if (planeCtl.plane === 'bliss') {
+        impactState.age += landW > 0.004 ? 0 : dt;    // the grid look ticks it otherwise
+        const pt = Math.min(1, impactState.age / BLISS_PUFF.secs);
+        puff.visible = impactState.age < BLISS_PUFF.secs * 1.5;
+        if (puff.visible) {
+          const r = BLISS_PUFF.radius * (0.15 + 0.85 * pt);
+          puff.position.set(impactState.x, BLISS.base + blissHeight(impactState.x, impactState.z) + 0.6, impactState.z);
+          puff.scale.set(r, 1, r); puffMat.opacity = impactState.strength * (1 - pt) * BLISS_PUFF.op * blissW;
+        }
+      }
+    }
   }
 
   function pushPulse(z0, amp) { if (pulses.length >= PULSE_MAX) pulses.shift(); pulses.push({z0, age: 0, amp: clamp01(amp == null ? 1 : amp)}); }
@@ -1724,6 +1948,6 @@ export function makeTunnel(THREE, opts = {}) {
     group.traverse(o => { if (o.isInstancedMesh) o.dispose(); });
   }
 
-  return {group, update, dispose, kick: strength => kick(strength), setMirror, setLook, nextPattern, setPattern, setDim, setBeatMorph, setBend, curve, tangent, setMemories, deal, impact, landingY, plungeStage, get inverse() { return looks.inverse.w; },
+  return {group, update, dispose, kick: strength => kick(strength), setMirror, setLook, nextPattern, setPattern, setDim, setBeatMorph, setBend, curve, tangent, setMemories, deal, impact, landingY, plungeStage, setPlane, setLandingPoint, matrixExit, get fogColor() { return looks.bliss.w > 0.5 ? tmpFog.setHex(BLISS.fogColor) : null; }, get inverse() { return looks.inverse.w; },
     runLog: () => runLog.map(r => ({pattern: patterns[r.pattern].name, pair: PALETTE_NAMES[PAT_PAIRS[r.pair][0]] + '/' + PALETTE_NAMES[PAT_PAIRS[r.pair][1]]})), patterns: () => patterns.map(p => ({name: p.name, segments: p.segments})), looks: () => Object.fromEntries(LOOK_NAMES.map(n => [n, looks[n].w])), stats, constants: {HALF_W, CELL, FOG_DENSITY, OCT_APOTHEM, SOLID_BAND, MIRROR_LEN}};
 }
