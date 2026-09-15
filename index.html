@@ -737,15 +737,15 @@ const endEls=(()=>{const root=$('end'), els=[], top=document.createElement('div'
  top.className='top'; cols.className='cols'; left.className='left'; bot.className='bot right'; const mid=document.createElement('div'); cols.append(left,mid,bot); root.append(top,cols);
  const add=(p,cls,txt)=>{const d=document.createElement('div');d.className=cls;d.textContent=txt;p.appendChild(d);els.push(d);return d};
  for(const t of END.lines||[]){const d=add(top,'el','');d.dataset.type=t}
- if(END.roles)add(top,'name',END.roles);                                    // the name lives in the first line now: the roles take the big slot
- if(END.line)add(top,'line',END.line);
+ if(END.roles)add(left,'roles',END.roles);                                  // owner: the small roles block on the left was right; the two lines carry the name
+ if(END.line)add(left,'line',END.line);
  if(END.cta)add(bot,'cta',END.cta);
  if(END.email){const a=document.createElement('a');a.className='mail bk';a.href='mailto:'+END.email;bk(a,END.email);isolate(a);bot.appendChild(a);els.push(a)}
  const links=document.createElement('div');links.className='links';bot.appendChild(links);
  for(const l of END.links||[]){const a=document.createElement('a');a.className='bk';a.href=l.url;a.target='_blank';a.rel='noopener';bk(a,l.label);isolate(a);links.appendChild(a);els.push(a)}
  if(END.outro)add(bot,'outro',END.outro);
  if(END.credit)add(bot,'credit',END.credit);
- for(const el of top.querySelectorAll('.line'))el.classList.add('mono','ph');
+ for(const el of left.querySelectorAll('.line'))el.classList.add('mono','ph');
  for(const el of bot.querySelectorAll('.cta,.outro,.credit'))el.classList.add('ph');
  return els})();
 function startEnd(){ if(ended)return; ended=true; jump=0; release(); hideKeys(); $('skip').hidden=true; if(act===2)act=3; document.body.classList.add('endon'); document.body.classList.remove('act2');
