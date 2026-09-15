@@ -180,9 +180,13 @@ const GLYPH_INSET = 1.5;
 const EXIT_SPLIT = 0.3;                  // seconds of chromatic split at the start of a matrix exit
 const EXIT_SPLIT_OFF = 1.4;              // units
 
-const BLISS = {size: 2400, segs: 80, recentre: 200, base: -12, hills: [[-320, -520, 380, 62], [300, -700, 300, 48], [-60, -1050, 520, 74]],   // [x, z, radius, height]
-  flat: [30, 130], low: 0x3b9440, high: 0x86d65a, maxLum: 0.8, sky: {zenith: 0x1f5fd0, mid: 0x4a90e2, horizon: 0xb7d9f2, radius: 1200, maxLum: 0.85},
-  sun: {color: 0xffffff, intensity: 1.6, dir: [0.7, 0.9, 0.5]}, hemi: {sky: 0x9ec5ff, ground: 0x4f7a2f, intensity: 0.6}, clouds: 12, cloudOp: 0.85, fogColor: 0xb7d9f2};
+const BLISS = {size: 2400, segs: 160, recentre: 200, base: -12,
+  ridge: {z: -520, len: 230, h: 72, saddle: 26, saddleLen: 520, saddleX: 140},   // the big hill sweeping left to right with a gentle saddle
+  hills: [[-460, -980, 360, 46], [420, -1120, 420, 54]],                          // two lower ones behind: [x, z, radius, height]
+  flat: [30, 150], low: 0x2f7a2a, high: 0x7ccf45, maxLum: 0.8, grassRepeat: 40, farBand: 0.22, haze: [900, 1300], sky: {zenith: 0x1f5fd0, mid: 0x4a90e2, horizon: 0xb7d9f2, radius: 1200, maxLum: 0.85},
+  sun: {color: 0xffffff, intensity: 1.6, dir: [0.7, 0.9, 0.5]}, hemi: {sky: 0x9ec5ff, ground: 0x4f7a2f, intensity: 0.6},
+  clouds: [[380, 300, -820, 1.0], [720, 350, -900, 1.3], [1060, 290, -760, 0.9], [-180, 330, -940, 0.8]],   // [x, y, z, scale], high and to the right
+  cloudOp: 0.96, sunDisc: [520, 480, -900, 90], fogColor: 0xb7d9f2};
 const BLISS_PUFF = {radius: 60, secs: 0.8, color: 0x8f9a86, op: 0.35};   // green-grey dust, not a glow
 
 const MEM_PER_FACE = 1;                  // panels per wall face per MEM_PITCH units (about 8 on screen)
@@ -410,6 +414,57 @@ function radialTexture(THREE, size) {
   grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.3, 'rgba(255,255,255,0.45)');
   grad.addColorStop(0.65, 'rgba(255,255,255,0.12)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad; g.fillRect(0, 0, size, size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+function grassTexture(THREE, size, lowHex, highHex) {
+  // tileable: two octaves of value noise on wrapping lattices, plus fine blade streaks, in greens low..high
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'), img = g.createImageData(size, size), d = img.data;
+  const lo = new THREE.Color(lowHex), hi = new THREE.Color(highHex);
+  const lat = (n, seed) => { const a = new Float32Array(n * n); for (let i = 0; i < n * n; i++) a[i] = hash(i, seed); return a; };
+  const l1 = lat(8, 211), l2 = lat(32, 212);
+  const sm = t => t * t * (3 - 2 * t);
+  const noise = (lt, n, u, v) => { const x = u * n, y = v * n, x0 = Math.floor(x) % n, y0 = Math.floor(y) % n, x1 = (x0 + 1) % n, y1 = (y0 + 1) % n, fx = sm(x - Math.floor(x)), fy = sm(y - Math.floor(y));
+    const a = lt[y0 * n + x0], b = lt[y0 * n + x1], cc = lt[y1 * n + x0], dd = lt[y1 * n + x1]; return (a + (b - a) * fx) + ((cc + (dd - cc) * fx) - (a + (b - a) * fx)) * fy; };
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const u = x / size, v = y / size;
+    let t = 0.62 * noise(l1, 8, u, v) + 0.38 * noise(l2, 32, u, v);
+    // blade streaks: short vertical dashes keyed to a wrapping hash of the column and a coarse row
+    const col = Math.floor(x / 2), row = Math.floor(y / 14), hs = hash(col * 977 + row, 213), phase = (y % 14) / 14;
+    if (hs < 0.35 && phase < 0.55) t += (hash(col + row * 31, 214) - 0.4) * 0.35;
+    t = Math.min(1, Math.max(0, t));
+    const r = lo.r + (hi.r - lo.r) * t, gg = lo.g + (hi.g - lo.g) * t, b = lo.b + (hi.b - lo.b) * t, k = (y * size + x) * 4;
+    // vertex colours are linear; the texture is declared sRGB, so encode
+    d[k] = Math.round(255 * Math.pow(r, 1 / 2.2)); d[k + 1] = Math.round(255 * Math.pow(gg, 1 / 2.2)); d[k + 2] = Math.round(255 * Math.pow(b, 1 / 2.2)); d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
+  return tex;
+}
+function cumulusTexture(THREE, w, h) {
+  // one cumulus: a cluster of soft-topped lobes with a hard flat bottom, white on transparent
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  const base = h * 0.72;
+  const lobes = [[0.22, 0.55, 0.16], [0.36, 0.42, 0.2], [0.5, 0.36, 0.22], [0.64, 0.44, 0.19], [0.78, 0.56, 0.15], [0.3, 0.62, 0.14], [0.6, 0.6, 0.15]];
+  for (const [lx, ly, lr] of lobes) {
+    const x = lx * w, y = ly * h, r = lr * w;
+    const gr = g.createRadialGradient(x, y, r * 0.55, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.8, 'rgba(244,247,252,0.9)'); gr.addColorStop(1, 'rgba(240,244,250,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // shade the underside a touch, then cut a hard flat bottom
+  const sh = g.createLinearGradient(0, base - h * 0.2, 0, base); sh.addColorStop(0, 'rgba(180,196,220,0)'); sh.addColorStop(1, 'rgba(170,190,218,0.55)');
+  g.globalCompositeOperation = 'source-atop'; g.fillStyle = sh; g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fillRect(0, base, w, h - base);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function sunDiscTexture(THREE, size) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gr.addColorStop(0, 'rgba(255,250,230,0.95)'); gr.addColorStop(0.12, 'rgba(255,248,220,0.9)'); gr.addColorStop(0.16, 'rgba(255,245,210,0.35)'); gr.addColorStop(0.5, 'rgba(255,240,200,0.08)'); gr.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, size, size);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
@@ -1295,7 +1350,9 @@ export function makeTunnel(THREE, opts = {}) {
   const landing = {x: 0, z: -35, set: false};
   const blissHeight = (wx, wz) => {      // world coordinates; flat within BLISS.flat[0] of the landing point
     const x = wx - landing.x, z = wz - landing.z;
-    let h = 0; for (const [hx, hz, r, hh] of BLISS.hills) { const d2 = ((x - hx) ** 2 + (z - hz) ** 2) / (r * r); h += hh * Math.exp(-d2 * 1.6); }
+    const R = BLISS.ridge, dz = (z - R.z) / R.len;
+    let h = (R.h - R.saddle * Math.exp(-(((x - R.saddleX) / R.saddleLen) ** 2))) * Math.exp(-dz * dz) * (1 + 0.08 * Math.sin(x / 260));   // ridge along x, dip in the middle
+    for (const [hx, hz, r, hh] of BLISS.hills) { const d2 = ((x - hx) ** 2 + (z - hz) ** 2) / (r * r); h += hh * Math.exp(-d2 * 1.6); }
     return h * smooth(BLISS.flat[0], BLISS.flat[1], Math.hypot(x, z));
   };
   function setLandingPoint(x, z) { landing.x = x || 0; landing.z = z; landing.set = true; hillCentre.dirty = true; }
@@ -1307,8 +1364,8 @@ export function makeTunnel(THREE, opts = {}) {
   function bakeHills(cx, cz) {
     // Shading is BAKED into the vertex colours (Lambert from the sun plus a sky/ground hemisphere) on an unlit material:
     // the host page runs no-decay key, fill and accent rim lights that push any lit green ground into clipped yellow.
-    const pos = hillGeo.attributes.position, col = hillGeo.attributes.color.array, lo = new THREE.Color(BLISS.low), hi = new THREE.Color(BLISS.high);
-    let hmax = 1; for (const h of BLISS.hills) hmax = Math.max(hmax, h[3]);
+    const pos = hillGeo.attributes.position, col = hillGeo.attributes.color.array;
+    let hmax = BLISS.ridge.h; for (const h of BLISS.hills) hmax = Math.max(hmax, h[3]);
     for (let i = 0; i < pos.count; i++) { const x = hillBase[i * 3], z = hillBase[i * 3 + 2]; pos.setXYZ(i, x, BLISS.base + blissHeight(cx + x, cz + z), z); }
     hillGeo.computeVertexNormals();
     const nrm = hillGeo.attributes.normal, sunDir = new THREE.Vector3(...BLISS.sun.dir).normalize();
@@ -1316,16 +1373,29 @@ export function makeTunnel(THREE, opts = {}) {
     for (let i = 0; i < pos.count; i++) {
       const h = pos.getY(i) - BLISS.base, nx = nrm.getX(i), ny = nrm.getY(i), nz = nrm.getZ(i);
       const lambert = Math.max(0, nx * sunDir.x + ny * sunDir.y + nz * sunDir.z);
-      _pc.copy(lo).lerp(hi, Math.pow(h / hmax, 0.8));
-      tmpA.copy(sunC).multiplyScalar(1.0 * lambert).add(tmpB.copy(gndC).lerp(skyC, 0.5 + 0.5 * ny).multiplyScalar(0.5));
-      _pc.multiply(tmpA);
+      // vertex colour = shading only (the grass texture carries the green): sun Lambert + hemisphere, a touch lighter on the crests,
+      // and a darker band on the far side of each hill (slopes facing away from the camera) for a rolling read
+      _pc.setRGB(0.92, 1.0, 0.9).lerp(tmpB.set(1.08, 1.06, 0.95), Math.pow(h / hmax, 0.8));
+      tmpA.copy(sunC).multiplyScalar(1.0 * lambert).add(tmpB.copy(gndC).lerp(skyC, 0.5 + 0.5 * ny).multiplyScalar(0.5).lerp(tmpB.set(1, 1, 1), 0.6));
+      _pc.multiply(tmpA).multiplyScalar(1 - BLISS.farBand * Math.max(0, -nz) * (h > 2 ? 1 : 0));
       const lum = 0.2126 * _pc.r + 0.7152 * _pc.g + 0.0722 * _pc.b; if (lum > BLISS.maxLum) _pc.multiplyScalar(BLISS.maxLum / lum);
       col[i * 3] = _pc.r; col[i * 3 + 1] = _pc.g; col[i * 3 + 2] = _pc.b;
     }
     pos.needsUpdate = true; hillGeo.attributes.color.needsUpdate = true; hillGeo.attributes.normal.needsUpdate = true;
     hillCentre.x = cx; hillCentre.z = cz; hillCentre.dirty = false;
   }
-  const hillMat = new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: 1, toneMapped: false});
+  const grassTex = grassTexture(THREE, 512, BLISS.low, BLISS.high); disposables.push(grassTex);
+  grassTex.repeat.set(BLISS.grassRepeat, BLISS.grassRepeat);
+  grassTex.anisotropy = opts.renderer && opts.renderer.capabilities ? opts.renderer.capabilities.getMaxAnisotropy() : 16;
+  const hillMat = new THREE.MeshBasicMaterial({map: grassTex, vertexColors: true, transparent: true, opacity: 1, toneMapped: false, fog: false});
+  // no scene fog on the grass; a haze toward the sky's horizon colour starts only at BLISS.haze[0] units so the near field stays sharp
+  hillMat.onBeforeCompile = sh => {
+    sh.uniforms.uHaze = {value: new THREE.Color(BLISS.sky.horizon)}; sh.uniforms.uHazeRange = {value: new THREE.Vector2(BLISS.haze[0], BLISS.haze[1])};
+    sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying vec3 vWp;\nvoid main() {').replace('#include <fog_vertex>', '#include <fog_vertex>\n vWp = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying vec3 vWp; uniform vec3 uHaze; uniform vec2 uHazeRange;\nvoid main() {')
+      .replace('#include <fog_fragment>', '#include <fog_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, uHaze, smoothstep(uHazeRange.x, uHazeRange.y, distance(vWp, cameraPosition)));');
+  };
+  hillMat.customProgramCacheKey = () => 'grass';
   const hill = new THREE.Mesh(hillGeo, hillMat); hill.frustumCulled = false; blissGroup.add(hill); disposables.push(hillGeo, hillMat);
   const skyGeo = new THREE.SphereGeometry(BLISS.sky.radius, 32, 16); disposables.push(skyGeo);
   const skyMat = new THREE.ShaderMaterial({side: THREE.BackSide, depthWrite: false, fog: false, transparent: true,
@@ -1335,11 +1405,17 @@ export function makeTunnel(THREE, opts = {}) {
     fragmentShader: 'uniform vec3 uZenith, uMid, uHorizon; uniform float uOp, uMaxLum; varying float vY; void main(){ float t = clamp(vY, 0.0, 1.0); vec3 c = t < 0.25 ? mix(uHorizon, uMid, t / 0.25) : mix(uMid, uZenith, pow((t - 0.25) / 0.75, 0.7)); float lum = dot(c, vec3(0.2126, 0.7152, 0.0722)); if (lum > uMaxLum) c *= uMaxLum / lum; gl_FragColor = vec4(c, uOp); }'});
   disposables.push(skyMat);
   const sky = new THREE.Mesh(skyGeo, skyMat); sky.renderOrder = -10; sky.frustumCulled = false; blissGroup.add(sky);
-  const cloudGeo = new THREE.PlaneGeometry(260, 80); disposables.push(cloudGeo);
-  const cloudMat = new THREE.MeshBasicMaterial({map: memGlowTex, alphaMap: memGlowTex, color: 0xd9d9d9, transparent: true, opacity: BLISS.cloudOp, depthWrite: false, fog: false, toneMapped: false});   // normal blending, kept under the bloom threshold
+  const cloudGeo = new THREE.PlaneGeometry(420, 210); disposables.push(cloudGeo);
+  const cloudTex = cumulusTexture(THREE, 512, 256); disposables.push(cloudTex);
+  const cloudMat = new THREE.MeshBasicMaterial({map: cloudTex, transparent: true, opacity: BLISS.cloudOp, depthWrite: false, fog: false, toneMapped: false, alphaTest: 0.02});   // normal blending
+  const sunGeo = new THREE.PlaneGeometry(1, 1); disposables.push(sunGeo);
+  const sunTex = sunDiscTexture(THREE, 256); disposables.push(sunTex);
+  const sunMat = new THREE.MeshBasicMaterial({map: sunTex, transparent: true, opacity: 0.9, depthWrite: false, fog: false, toneMapped: false});
+  disposables.push(sunMat);
+  const sunDisc = new THREE.Mesh(sunGeo, sunMat); sunDisc.frustumCulled = false; blissGroup.add(sunDisc);
   disposables.push(cloudMat);
-  const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, BLISS.clouds); clouds.frustumCulled = false; blissGroup.add(clouds);
-  const cloudPos = []; for (let i = 0; i < BLISS.clouds; i++) cloudPos.push([(hash(i, 201) - 0.5) * 1600, 150 + hash(i, 202) * 220, -420 - hash(i, 203) * 600, 0.7 + hash(i, 204) * 0.9]);
+  const clouds = new THREE.InstancedMesh(cloudGeo, cloudMat, BLISS.clouds.length); clouds.frustumCulled = false; blissGroup.add(clouds);
+  const cloudPos = BLISS.clouds;
   const sun = new THREE.DirectionalLight(BLISS.sun.color, BLISS.sun.intensity); sun.position.set(0.7, 0.9, 0.5);
   const hemi = new THREE.HemisphereLight(BLISS.hemi.sky, BLISS.hemi.ground, BLISS.hemi.intensity);
   const blissKey = new THREE.DirectionalLight(LAND_KEY.color, LAND_KEY.intensity); blissKey.position.set(-1, 0.8, 1);
@@ -1836,10 +1912,11 @@ export function makeTunnel(THREE, opts = {}) {
       hillMat.opacity = blissW; skyMat.uniforms.uOp.value = blissW;
       sky.position.set(curve(camZ).x, curve(camZ).y, camZ);
       const cArr = clouds.instanceMatrix.array;
-      for (let i = 0; i < BLISS.clouds; i++) {
-        const [cx, cy, cz, sc] = cloudPos[i], drift = reduced ? 0 : Math.sin(state.t * 0.05 + i) * 30;
-        _o.position.set(cx + drift, cy, landing.z + cz); _o.quaternion.identity(); _o.scale.set(sc, sc, 1); _o.updateMatrix(); _o.matrix.toArray(cArr, i * 16);
+      for (let i = 0; i < cloudPos.length; i++) {
+        const [cx, cy, cz, sc] = cloudPos[i], drift = reduced ? 0 : Math.sin(state.t * 0.04 + i) * 20;
+        _o.position.set(landing.x + cx + drift, cy, landing.z + cz); _o.quaternion.identity(); _o.scale.set(sc, sc, 1); _o.updateMatrix(); _o.matrix.toArray(cArr, i * 16);
       }
+      { const [sx, sy, sz, ss] = BLISS.sunDisc; sunDisc.position.set(landing.x + sx, sy, landing.z + sz); sunDisc.scale.set(ss * 2.6, ss * 2.6, 1); sunMat.opacity = 0.9 * blissW; }
       clouds.instanceMatrix.needsUpdate = true; cloudMat.opacity = BLISS.cloudOp * blissW;
       sun.intensity = BLISS.sun.intensity * blissW; hemi.intensity = BLISS.hemi.intensity * blissW;
       blissKey.intensity = LAND_KEY.intensity * blissW; blissFill.intensity = LAND_FILL.intensity * blissW;

@@ -568,7 +568,7 @@ function phase(z){const p=phaseFrac(z); let i=0; while(i<PHASE_STOPS.length-2&&p
    stand, framed knees up. Screen stays "static" (snow, NO SIGNAL) until a real photo arrives. Scrolling back up
    plays it in reverse. Every full-body call is optional. */
 const LAND_S=10; let landS=4.75;                                  // the landing scale: about 45% of the frame at 40 units
-const ROBOT_S=4.75, ROBOT_END_S=44, LEAD_END=NARROW?265:128, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
+const ROBOT_S=4.75, ROBOT_END_S=48, LEAD_END=NARROW?190:92, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
 const END_PELVIS_Y=-14, END_EYE=0.62;                        // END lens height above the pelvis, in figure scales: the set's centre                                      // pelvis, world y: set top near the top third, knees at the bottom edge (about 70% of the height)
 const ACCENT_END='#'+phase(END_STOP).getHexString();
 const robot=makeCRT(THREE,{accent:ACCENT_END,full:true});
@@ -749,7 +749,8 @@ const endEls=(()=>{const root=$('end'), els=[], top=document.createElement('div'
  for(const el of bot.querySelectorAll('.cta,.outro,.credit'))el.classList.add('ph');
  return els})();
 function startEnd(){ if(ended)return; ended=true; jump=0; release(); hideKeys(); $('skip').hidden=true; if(act===2)act=3; document.body.classList.add('endon'); document.body.classList.remove('act2');
- try{ crt.setScreen?.('eyes') }catch(e){} screenMode='eyes'; lastMoveAt=performance.now() }
+ try{ crt.setScreen?.('eyes') }catch(e){} screenMode='eyes'; lastMoveAt=performance.now(); endEyesAt=shipT }
+let endEyesAt=0;
 let screenMode='', lastMoveAt=0;
 addEventListener('mousemove',()=>{ lastMoveAt=performance.now(); if(ended&&screenMode==='glyph'){ screenMode='eyes'; try{crt.setScreen?.('eyes')}catch(e){} } },{passive:true});
 /* ---------- ACT 2: the authored fall. The tunnel changes look per void (tunnel.setLook is the tunnel owner's; phase control is the fallback). ---------- */
@@ -1036,7 +1037,7 @@ function physicsStep(dt,raw){
  robotV.multiplyScalar(Math.pow(0.86,dt)); robotP.addScaledVector(robotV,dt);
  const cd=critSpring;
  if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S, chest=robotP.y+0.55*landS;
-  camGoal.set(driftT.x*(1-k),(robotP.y+6)*(1-k)+eye*k); lookGoal.set(robotP.x*(1-k),chest*(1-k)+(eye-0.02*ROBOT_END_S)*k) }   // the landing rig eases into the END rig; the look target drops below the eye so the set top lands near 24%
+  camGoal.set(driftT.x*(1-k),(robotP.y+6)*(1-k)+eye*k); lookGoal.set(robotP.x*(1-k),chest*(1-k)+(eye+0.17*2*LEAD_END*0.315)*k) }   // portrait: the set centre about 56% down, level lens (measured: +3.5 units put it at 45%)   // the landing rig eases into the END rig; the look target drops below the eye so the set top lands near 24%
  else if(act===2&&phase2==='landing'){ camGoal.set(robotP.x,robotP.y+8); lookGoal.set(robotP.x,robotP.y+0.15*landS) }   // 40 behind, 8 above, looking at his hips: boots and ground in frame         // 40 behind, 6 above, looking at his chest   // lens at his eye line, level, straight at the screen (owner: no low angle)
  else { camGoal.set(robotP.x,robotP.y+3); lookGoal.set(robotP.x+steer.x*12,robotP.y-2+steer.y*8) }   // behind and a little above him, looking a touch below his line
  cd(drift,driftV,camGoal,6,hsec); cd(lookP,lookV,lookGoal,9,hsec);
@@ -1230,7 +1231,8 @@ function frame(now){
  } else if(!tvHover) br.style.opacity=0;
 
  gameFrame(now);
- if(ended&&endP>=1&&screenMode==='eyes'&&now-lastMoveAt>8000){ screenMode='glyph'; try{crt.setScreen?.('glyph')}catch(e){} }   // the idle glyph after 8 s without a pointer
+ if(ended&&shipT-endEyesAt<8000){ screenMode='eyes'; try{crt.setScreen?.('eyes')}catch(e){} }   // eyes on for the first 8 s of the END whatever the pointer does (the module's own eyes/glyph cycle is held off by re-asserting every frame)
+ else if(ended&&endP>=1&&screenMode==='eyes'&&now-lastMoveAt>8000){ screenMode='glyph'; try{crt.setScreen?.('glyph')}catch(e){} }   // then the idle glyph after 8 s without a pointer
  if(bareMode){ if(tunnel&&tunnel.group)tunnel.group.visible=false; for(const m of allLines)m.visible=false; for(const o of cards)o.grp.visible=false; for(const r of rings)r.visible=false; pwM.opacity=0; pcM.opacity=0; $('end').style.visibility='hidden' }
  /* the END: the figure follows the pointer, the glass answers a hover and a poke */
  if(endP>=0.99&&ended){ endFrame(now) }
