@@ -42,7 +42,7 @@ export const ACT2 = {
     shapes:["cube","octa","tetra","ico"],
     /* the plunge is a cut list; the tunnel owns the looks. prism = a cube tunnel whose walls snap to random colours on the beat
        and whose cross-section morphs square -> triangle -> square. No text anywhere in the plunge (owner). */
-    stages:["prism","prism-tri","inverse","prism","glyphs","collapse"],
+    stages:["cage-dark","vortex","prism-tri","lattice-green","inverse","glyphs","collapse"],   /* three lusion.co rooms (refs in kirtan-bridge-shots/refs) plus ours */
     glyphWords:["RENDER","TAKE 2","24 FPS","ROLL","CUT","EXPORT","DEPLOY","COMMIT","ACTION","SHIP IT","REEL","FRAME","LIGHT","PUSH","MERGE","LOG"],
     text:null
   },
@@ -65,7 +65,6 @@ export const END = {
   email:"purohit.krick@gmail.com",
   links:[
     {label:"INSTAGRAM", url:"https://instagram.com/kirtanheypurohit"},
-    {label:"THE OTHER INSTAGRAM", url:"https://instagram.com/kirtancreative"},
     {label:"YOUTUBE", url:"https://youtube.com/@Kirtanpurohit"}
   ],
   outro:"GO BACK UP. YOU MISSED SOME."   /* replaced at runtime by GAME.missed / GAME.clean */,
@@ -124,7 +123,7 @@ export const HUD = {
   classified:"SEALED",    /* suffix on agency cards, never linked */
   sealedNote:"SEALED. READ ONLY.",   /* replaces the OPEN button on classified cards */
   darkNote:"DEAD. NOTHING TO OPEN.", /* replaces the OPEN button on dark cards */
-  release:"CLICK ANYWHERE OR ESC TO LET GO  /  ENTER OPENS IT",
+  release:"ANY KEY TO FLY ON  /  ENTER OPENS IT",
   open:"OPEN IT",
   absurd:"THIS IS NOT PHYSICS"   /* state word above 12c; there is no speed cap */
 };

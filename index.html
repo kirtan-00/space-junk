@@ -8,11 +8,13 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;height:100dvh;overflow:hidden;background:#03040a}
 :root{--acc:#3fe9ff;--accA:rgba(63,233,255,.35);--cs:1}
-body{font-family:"Space Mono","SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;color:#cfe4ee;cursor:none;user-select:none}
+body{font-family:Archivo,"Helvetica Neue",Arial,sans-serif;font-variation-settings:"wdth" 100,"wght" 500;color:#cfe4ee;cursor:none;user-select:none}
 canvas{position:fixed;left:0;top:0;width:100vw!important;height:100vh!important;display:block}
 /* phosphor: every piece of chrome text glows in the phase accent and splits red/blue with speed */
 .ph{color:var(--acc);text-shadow:0 0 6px currentColor,0 0 18px var(--accA),calc(-1px*var(--cs)) 0 rgba(255,40,80,.55),calc(1px*var(--cs)) 0 rgba(40,220,255,.55)}
-.mono{font-family:"Space Mono","SFMono-Regular",Menlo,Consolas,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;line-height:1.6}
+/* the secondary face: Archivo at width 100, weight 500, tracked a little; uppercase only on short labels, sentence case on prose */
+.mono{font-family:Archivo,"Helvetica Neue",Arial,sans-serif;font-variation-settings:"wdth" 100,"wght" 500;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;line-height:1.6}
+.prose{text-transform:none;letter-spacing:.02em}
 #hud{position:fixed;inset:0;padding:30px;pointer-events:none;z-index:5;padding:max(30px,env(safe-area-inset-top)) max(30px,env(safe-area-inset-right)) max(30px,env(safe-area-inset-bottom)) max(30px,env(safe-area-inset-left))}
 .p{position:absolute}
 .id{left:30px;top:30px}
@@ -20,7 +22,12 @@ canvas{position:fixed;left:0;top:0;width:100vw!important;height:100vh!important;
   text-shadow:0 0 6px rgba(238,246,250,.6),0 0 18px var(--accA),calc(-1px*var(--cs)) 0 rgba(255,40,80,.5),calc(1px*var(--cs)) 0 rgba(40,220,255,.5)}
 /* bracketed text is the only kind of button: [ LABEL ], brackets in the accent, label white; hover is inverse video and snaps */
 .bk{display:inline-block;pointer-events:auto;color:#eef6fa;text-decoration:none;background:none;border:0;font:inherit;cursor:none;padding:2px 0;white-space:nowrap}
-.bk i{font-style:normal;color:var(--acc)}
+.bk i{display:none}                                                              /* brackets are gone from the chrome; the loader's key caps keep theirs */
+#loader .bk i{display:inline;font-style:normal;color:var(--acc)}
+.bk span{border-bottom:1px solid rgba(238,246,250,.4);padding-bottom:1px;transition:border-color .3s cubic-bezier(.32,.72,0,1)}
+.bk:hover span,.bk:focus-visible span{border-color:#eef6fa}
+.bk:hover,.bk:focus-visible,.bk.on{background:none;color:#eef6fa;text-shadow:none}
+.keys i,.counter i,.cap i,.contact i{display:none}
 .bk:hover,.bk:focus-visible,.bk.on{background:var(--acc);color:#03040a;outline:0;text-shadow:none}
 .bk:hover i,.bk:focus-visible i,.bk.on i{color:#03040a}
 .bk:active{color:#03040a;background:var(--acc)}
@@ -75,8 +82,9 @@ canvas{position:fixed;left:0;top:0;width:100vw!important;height:100vh!important;
 body.act2 .vel,body.act2 .keys,body.act2 .counter,body.endon .vel,body.endon .keys,body.endon .counter{display:none}
 body.endon .id .nm{opacity:.4;transition:opacity .6s cubic-bezier(.32,.72,0,1)}
 body.endon .contact{pointer-events:none;opacity:.6}
+body.endon #cur .o{display:none} body.endon #cur .d{inset:7px;background:#fff;box-shadow:none}
 .skip[hidden]{display:none}
-.toast{position:fixed;pointer-events:none;z-index:8;font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;color:#fff;text-shadow:0 1px 1px rgba(3,4,10,.9);transform:translate(-50%,-50%);
+.toast{position:fixed;pointer-events:none;z-index:8;font-family:Archivo,sans-serif;font-variation-settings:"wdth" 100,"wght" 500;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;color:#fff;text-shadow:0 1px 1px rgba(3,4,10,.9);transform:translate(-50%,-50%);
   transition:opacity .22s cubic-bezier(.32,.72,0,1),transform .22s cubic-bezier(.32,.72,0,1)}
 .toast.off{transform:translate(-50%,calc(-50% - 8px));opacity:0}
 .keys span{margin-left:14px}
@@ -95,14 +103,14 @@ body.endon .contact{pointer-events:none;opacity:.6}
   transition:opacity .22s cubic-bezier(.32,.72,0,1),transform .22s cubic-bezier(.32,.72,0,1),visibility 0s .22s}
 #insp.on{visibility:visible;opacity:1;transform:translateX(-50%) translateY(0);transition:opacity .22s cubic-bezier(.32,.72,0,1),transform .22s cubic-bezier(.32,.72,0,1)}
 #insp.closing{visibility:visible}
-#insp .tv{position:relative;background:rgba(3,4,10,.72);border-top:1px solid rgba(255,255,255,.22);border-bottom:1px solid rgba(255,255,255,.22);padding:18px 22px 16px;text-align:left}
+#insp .tv{position:relative;background:rgba(3,4,10,.72);padding:18px 22px 16px;text-align:left}
 #insp .tv::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.12) 2px 3px)}
 #insp .tk{display:none}
 #insp .txt{opacity:1}
-#insp .k{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6);text-shadow:none;min-height:16px}
+#insp .k{font-family:Archivo,sans-serif;font-variation-settings:"wdth" 100,"wght" 500;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.6);text-shadow:none;min-height:16px}
 #insp h2{font-family:Archivo,sans-serif;font-variation-settings:"wdth" 112,"wght" 800;font-size:30px;line-height:1;color:#fff;margin:6px 0 10px;min-height:30px;text-shadow:none}
 #insp p{font-size:12.5px;line-height:1.65;color:rgba(255,255,255,.82);letter-spacing:.01em;min-height:20px;max-width:520px}
-#insp .row{display:flex;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+#insp .row{display:flex;justify-content:flex-end;margin-top:12px;font-family:Archivo,sans-serif;font-variation-settings:"wdth" 100,"wght" 500;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase}
 #insp .row .bk{margin:0}
 #insp .row:not(:has(.bk:not([hidden]))){display:none}
 #insp .x.note{display:block;margin-top:12px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6);text-shadow:none}
@@ -145,18 +153,18 @@ body.endon .contact{pointer-events:none;opacity:.6}
 #end .name.split{--csn:5}
 #end .roles{margin-top:12px;font-family:Archivo,sans-serif;font-variation-settings:"wdth" 112,"wght" 600;font-size:clamp(12px,min(2.2vw,3vh),26px);letter-spacing:.2em;text-transform:uppercase;color:#eef6fa;text-shadow:0 0 8px rgba(238,246,250,.4),0 0 18px var(--accA);opacity:0;transform:translateY(16px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
 #end .roles.in{opacity:1;transform:none}
-#end .line{margin-top:14px;font-size:11.5px;letter-spacing:.04em;color:#cfe4ee;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
+#end .line{margin-top:14px;font-size:13px;letter-spacing:.02em;text-transform:none;color:#cfe4ee;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
 #end .line.in{opacity:.7;transform:none}
-#end .cta{margin-top:24px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
+#end .cta{margin-top:24px;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
 #end .cta.in{opacity:1;transform:none}
-#end a.mail{margin-top:10px;font-size:13px;letter-spacing:.06em;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
+#end a.mail{margin-top:10px;font-size:14px;letter-spacing:.03em;text-transform:none;opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
 #end a.mail.in{opacity:1;transform:none}
 #end .links{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;margin-top:16px;max-width:80vw;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
 #end .links a{opacity:0;transform:translateY(14px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .3s}
 #end .links a.in{opacity:1;transform:none}
-#end .outro{margin-top:14px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:0;transform:translateY(10px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .4s}
+#end .outro{margin-top:14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:0;transform:translateY(10px);transition:transform .6s cubic-bezier(.32,.72,0,1),opacity .4s}
 #end .outro.in{opacity:1;transform:none}
-#end .credit{margin-top:8px;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;opacity:0;transition:opacity .6s cubic-bezier(.32,.72,0,1)}
+#end .credit{margin-top:8px;font-size:11px;letter-spacing:.02em;text-transform:none;opacity:0;transition:opacity .6s cubic-bezier(.32,.72,0,1)}
 #end .credit.in{opacity:.45}
 /* overlays: grain, scanlines, a slow roll bar */
 /* the loader: two instructions, a real progress line, then any key. Under the HUD (wordmark, contact, mute stay visible), under the overlays. */
@@ -219,7 +227,7 @@ body.inv #end .el,body.inv #end .name{color:var(--ink);text-shadow:none}
 </div>
 <div id="br"><i></i><i></i><i></i><i></i></div>
 <div id="insp"><div class="tv"><span class="tk a"></span><span class="tk b"></span><span class="tk c"></span><span class="tk d"></span>
-  <div class="txt"><div class="k mono ph" id="ik"></div><h2 id="ih"></h2><p id="ip"></p>
+  <div class="txt"><div class="k" id="ik"></div><h2 id="ih"></h2><p class="prose" id="ip"></p>
   <button id="iclose" class="bk mono ph" type="button" hidden></button>
   <div class="row"><a id="ia" class="bk" href="#" target="_blank" rel="noopener" hidden></a><button id="iplay" class="bk" type="button" hidden></button></div>
   <div class="x note mono ph" id="inote" hidden></div><div id="ivid"></div><div class="x rel mono ph" id="irel"></div></div></div></div>
@@ -330,7 +338,7 @@ function wordmarkTex(o){
  const word=String(o.nm||'').toUpperCase(), parts=word.split(' ');
  const rows=parts.length>=2?[parts[0],parts.slice(1).join(' ')]:[word];
  const setWord=g=>{ g.font='900 '+fs+'px Archivo,sans-serif'; g.fontStretch='expanded'; g.letterSpacing=(-fs*0.02).toFixed(1)+'px' };
- const tagFs=Math.round(fs*0.22), setTag=g=>{ g.font='400 '+tagFs+'px "Space Mono",monospace'; g.fontStretch='normal'; g.letterSpacing=(tagFs*0.18).toFixed(1)+'px' };
+ const tagFs=Math.round(fs*0.22), setTag=g=>{ g.font='500 '+tagFs+'px Archivo,sans-serif'; g.fontStretch='normal'; g.letterSpacing=(tagFs*0.18).toFixed(1)+'px' };
  setWord(x); const rowW=rows.map(r=>x.measureText(r).width), wordW=Math.max(...rowW);
  const tag=String(o.kind||'').toUpperCase()+(sealed?'  /  '+HUD.classified:''); setTag(x); const tagW=x.measureText(tag).width;
  const lh=fs*0.86, pad=Math.round(fs*0.22), blockW=Math.max(wordW,tagW), W=Math.ceil(blockW+pad*2), H=Math.ceil(pad+rows.length*lh+fs*0.12+1+fs*0.12+tagFs*1.2+pad*0.6);
@@ -693,7 +701,8 @@ function sndLabel(){ $('sndt').textContent=!audioOn?'SOUND':audio.muted?'SOUND O
 
 
 /* ---------- input ---------- */
-addEventListener('wheel',e=>{ if(loading||playing||jump)return; if(insp){ if(Math.abs(e.deltaY)>4)release(); return }   // a scroll lets go of an opened object if(act!==1&&!ended&&e.deltaY>0&&!scrub)return;   // Act 2: only a pull back (or anything while scrubbing) gets through
+addEventListener('wheel',e=>{ if(loading||playing||jump)return; if(insp){ if(Math.abs(e.deltaY)>4)release(); return }   // a scroll lets go of an opened object
+ if(act!==1&&!ended&&e.deltaY>0&&!scrub)return;   // Act 2: only a pull back (or anything while scrubbing) gets through
  let d=e.deltaY, dx=e.deltaX; if(e.deltaMode===1){d*=16;dx*=16} else if(e.deltaMode===2){d*=innerHeight;dx*=innerWidth}   // device-independent: lines and pages become pixels
  d=Math.max(-120,Math.min(120,d)); wheelAcc+=d;
  },{passive:true});   // trackpad micro-deltas add up over the frame; no cap either way. Owner: the trackpad never steers the figure, only speed; steering is keys and touch
@@ -702,7 +711,8 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
  if(playing){ if(k==='escape')release(); if(k==='m')setMute(!audio.muted); return }     // the reel owns the keys
  if(act!==1&&!ended&&k!==' '&&k!=='m'&&k!=='escape'&&!(k in keys))return;                // Act 2: Space, M and the steering keys
  if(k===' '){e.preventDefault();space=true;$('ksp')?.classList.add('on');document.body.classList.add('slow')}
- if(k in keys){e.preventDefault();keys[k]=1;$('k'+k)?.classList.add('on'); if(insp&&(k==='w'||k==='s'))release()}   // W or S lets go too
+ if(k in keys){e.preventDefault();keys[k]=1;$('k'+k)?.classList.add('on')}
+ if(insp&&k!=='m'&&k!=='enter'&&!playing){release();return}                                // any key lets go of the card and he flies on
  if(k==='m')setMute(!audio.muted);
  if(k==='escape'&&insp)release();
  if(k==='enter'&&insp&&insp.state==='live'&&insp.url){e.preventDefault();window.open(insp.url,'_blank','noopener')}});
@@ -746,8 +756,8 @@ const endEls=(()=>{const root=$('end'), els=[], top=document.createElement('div'
  for(const l of END.links||[]){const a=document.createElement('a');a.className='bk';a.href=l.url;a.target='_blank';a.rel='noopener';bk(a,l.label);isolate(a);links.appendChild(a);els.push(a)}
  if(END.outro)add(bot,'outro',END.outro);
  if(END.credit)add(bot,'credit',END.credit);
- for(const el of left.querySelectorAll('.line'))el.classList.add('mono','ph');
- for(const el of bot.querySelectorAll('.cta,.outro,.credit'))el.classList.add('ph');
+ for(const el of top.querySelectorAll('.line'))el.classList.add('mono','prose');
+ for(const el of bot.querySelectorAll('.credit'))el.classList.add('prose');
  return els})();
 function startEnd(){ if(ended)return; ended=true; jump=0; release(); hideKeys(); $('skip').hidden=true; if(act===2)act=3; document.body.classList.add('endon'); document.body.classList.remove('act2');
  try{ crt.setScreen?.('eyes'); crt.setHeadTrack?.(true) }catch(e){} screenMode='eyes'; lastMoveAt=performance.now(); endEyesAt=shipT }
@@ -905,10 +915,10 @@ function hideEnd(){ endShown=false; for(const tm of endTimers)clearTimeout(tm); 
 function goToEnd(){ if(ended)return; release(); hideKeys(); hold=false; jump=132 }
 /* ---------- the END, interactive: the figure follows the pointer, the glass answers a hover and a poke ----------
    crt.glass / crt.lookAt / crt.hover / crt.poke and audio.tvHover / audio.tvPoke are other agents' additions; every call is optional. */
-let hasPointer=false, tvHover=false;
+let hasPointer=false, tvHover=false; const ptrGoal=new THREE.Vector2(), ptrS=new THREE.Vector2(), ptrV=new THREE.Vector2(); let ptrT=performance.now();
 const glassBox=new THREE.Box3(), glassCorner=new THREE.Vector3();
 function endFrame(){
- if(hasPointer)crt.lookAt?.(cx/innerWidth*2-1,-(cy/innerHeight*2-1));
+ if(hasPointer){ ptrGoal.set(cx/innerWidth*2-1,-(cy/innerHeight*2-1)); critSpring(ptrS,ptrV,ptrGoal,5,Math.min(0.05,(performance.now()-ptrT)/1000)); ptrT=performance.now(); crt.lookAt?.(ptrS.x,ptrS.y) }   // the set and the eyes follow a sprung pointer, not the raw events
  const glass=crt.glass; let over=false;
  if(glass&&glass.isObject3D&&hasPointer){ ndc.set(cx/innerWidth*2-1,-(cy/innerHeight*2-1)); ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(glass,true)[0]; over=!!hit;
   if(hit&&hit.uv)crt.setPointer?.(hit.uv.x,hit.uv.y) }                   // the glass UV under the pointer drives the local dither
@@ -951,7 +961,7 @@ let downAt=0;
 addEventListener('mousedown',e=>{downAt=performance.now();
  if(ended&&tvHover){pokeTv();return}
  if(insp){release();return}
- if(hoverO){grab(hoverO);return}
+ if(hoverO&&(COARSE||PHONE)){grab(hoverO);return}                                    // desktop: no click-to-open, you fly the figure into it (owner); phones tap
  if(act!==1)return;
  hold=true;document.body.classList.add('brake')});
 addEventListener('mouseup',()=>{hold=false;document.body.classList.remove('brake')});
@@ -983,7 +993,7 @@ function powerOff(){ const P=$('insp'); for(const tm of panelTimers)clearTimeout
 
 const tmpV=new THREE.Vector3(), tmpQ=new THREE.Quaternion(), tmpQ2=new THREE.Quaternion(), tmpE=new THREE.Euler(), tgt=new THREE.Vector3(), flipQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);
 
-let last=performance.now(), frameNo=0, csLast=-1, accLast='', vGhostOn=false, beatLast=0; const frameTimes=new Float32Array(1200); let ftI=0; const vHist=[{t:0,s:'0.000'}];
+let TS_INSP=0.04; let last=performance.now(), frameNo=0, csLast=-1, accLast='', vGhostOn=false, beatLast=0; const frameTimes=new Float32Array(1200); let ftI=0; const vHist=[{t:0,s:'0.000'}];
 /* film grain: a 256 px noise tile, stepped six times a second */
 (()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d'),im=x.createImageData(256,256),d=im.data;
  for(let i=0;i<d.length;i+=4){const n=Math.random()*255|0;d[i]=d[i+1]=d[i+2]=n;d[i+3]=255} x.putImageData(im,0,0);
@@ -1003,7 +1013,7 @@ let prevCam=0, prevRoll=0; const prevDrift=new THREE.Vector2(), prevRobot=new TH
 const PHYS_MS=1000/120;
 function physicsStep(dt,raw){
  /* time scale: Space slows time, inspecting slows it a little */
- const tsT= jump?1 : space?0.10 : insp?0.28 : holdT>0?0.6 : 1;
+ const tsT= jump?1 : space?0.10 : insp?TS_INSP : holdT>0?0.6 : 1;                      // a hit stops time: the card stays until any key or a scroll (owner)
  ts += (tsT-ts)*(1-Math.pow(1-0.10,dt));
  dtw=dt*ts;                          // world frames
  baseT+=raw; shipT+=raw*ts; t+=dtw;
@@ -1181,7 +1191,7 @@ function frame(now){
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
  if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,scrub,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',landK:+landK.toFixed(2),look:(()=>{try{return tunnel&&tunnel.currentLook?tunnel.currentLook():null}catch(e){return null}})(),phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
-  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
+  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__tsInsp=x=>{TS_INSP=x}; window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }
 
  /* particles: stretch with speed, recycle, energy budget */
@@ -1208,12 +1218,13 @@ function frame(now){
  for(const o of cards){
   const g=o.grp, halo=h=>{o.back.material.opacity=0.6*(0.10+0.25*h+0.15*sp)};
   if(o.held){ inspT=Math.min(1,inspT+dt*0.055);
-   tgt.set(0,-1.5,-30); camera.localToWorld(tgt);
+   tgt.set(PHONE?0:-15,PHONE?6:4,-34); camera.localToWorld(tgt);                                    // held: up and to the left, clear of the figure (drawn on top) and of the panel
    g.position.lerp(tgt,0.12*dt);
    tmpQ.copy(camera.quaternion).multiply(flipQ);
    g.quaternion.slerp(tmpQ,0.10*dt);
+   { const k=inspT*inspT*(3-2*inspT), esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w))), es=1+(esMax-1)*k; g.scale.set(es,es,es); if(o.prop)o.prop.setDim?.(0) }   // expands toward a 24-unit width at 34 ahead: a logo grows, a big prop never fills the frame; a prop is undimmed while held
    halo(1); if(o.frame)frameOpacity(o.frame,1.64); if(o.nk!==1){o.nk=1;o.front.material.opacity=o.ready?1:0} continue }
-  if(o.releasing){ o.releasing=Math.max(0,o.releasing-dt*0.03);
+  if(o.releasing){ o.releasing=Math.max(0,o.releasing-dt*0.03); { const esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w))), es=1+(esMax-1)*o.releasing; g.scale.set(es,es,es) }
    if(o.releasing===0){ o.base.copy(o.home);
     reseed(o);g.position.copy(o.base);o.off.set(0,0,0);o.vel.set(0,0,0);g.scale.set(1,1,1)}
    else{tgt.set(18,6,-70);camera.localToWorld(tgt);g.position.lerp(tgt,0.05*dt);g.rotation.x+=o.spin.x*dtw*3;g.rotation.y+=o.spin.y*dtw*3}
@@ -1221,8 +1232,8 @@ function frame(now){
   /* culling only: visible within 1400 ahead or 60 behind; nothing ever moves, so backing up finds it exactly where it was */
   const dz=camera.position.z-o.base.z; g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
   /* pickup: the ROBOT (not the camera) crosses the object's z inside its radius */
-  if(prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(12,Math.hypot(o.pw||o.w,o.h)/2*1.4);   // every crossing, logged or not: a return visit still opens it
-   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ if(!o.logged)logObject(o); if(!insp&&!o.releasing&&act===1)grab(o) } } }   // bashing into it opens it (owner): no click needed
+  if(prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(16,Math.hypot(o.pw||o.w,o.h)/2*1.8);   // every crossing, logged or not: a return visit still opens it; generous, arrows are coarse
+   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ if(!o.logged)logObject(o); if(insp&&insp!==o&&act===1)release(); if(!insp&&!o.releasing&&act===1){ grab(o); try{o.prop?.poke?.()}catch(e){} if(!RM){shAmp=Math.max(shAmp,0.35);shPh=0} } } } }   // the hit: a jolt, then it expands   // bashing into it opens it (owner): no click needed
   if(o.flash>0||o.flashV){ o.flashV+=(0-o.flash)*0.08*dt; o.flashV*=Math.pow(0.80,dt); o.flash+=o.flashV*dt; if(Math.abs(o.flash)<0.002&&Math.abs(o.flashV)<0.002){o.flash=0;o.flashV=0} }
   if(o.state==='dark'){const ph=((t/60)*o.flr+o.flp)%1, env=0.6+0.4*Math.exp(-5*ph)*(0.5+0.5*Math.cos(ph*50));
    /* dead: dimmed and flickering. A logo takes the 25%; a bare wordmark on transparent needs 42% or it vanishes into the tunnel */
@@ -1276,8 +1287,8 @@ function frame(now){
  } else if(!tvHover) br.style.opacity=0;
 
  gameFrame(now);
- if(ended&&shipT-endEyesAt<8000){ screenMode='eyes'; try{crt.setScreen?.('eyes')}catch(e){} }   // eyes on for the first 8 s of the END whatever the pointer does (the module's own eyes/glyph cycle is held off by re-asserting every frame)
- else if(ended&&endP>=1&&screenMode==='eyes'&&now-lastMoveAt>8000){ screenMode='glyph'; try{crt.setScreen?.('glyph')}catch(e){} }   // then the idle glyph after 8 s without a pointer
+ if(ended&&(shipT-endEyesAt<8000||now-lastMoveAt<12000)){ screenMode='eyes'; try{crt.setScreen?.('eyes')}catch(e){} }   // eyes while the pointer is alive; the glyph only after 12 s idle   // eyes on for the first 8 s of the END whatever the pointer does (the module's own eyes/glyph cycle is held off by re-asserting every frame)
+ else if(ended&&endP>=1&&screenMode==='eyes'&&now-lastMoveAt>12000){ screenMode='glyph'; try{crt.setScreen?.('glyph')}catch(e){} }   // then the idle glyph after 8 s without a pointer
  if(bareMode){ if(tunnel&&tunnel.group)tunnel.group.visible=false; for(const m of allLines)m.visible=false; for(const o of cards)o.grp.visible=false; for(const r of rings)r.visible=false; pwM.opacity=0; pcM.opacity=0; $('end').style.visibility='hidden' }
  /* the END: the figure follows the pointer, the glass answers a hover and a poke */
  if(endP>=0.99&&ended){ endFrame(now) }
