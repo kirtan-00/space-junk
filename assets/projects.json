@@ -144,18 +144,6 @@
     "live": false
   },
   {
-    "slug": "letters",
-    "name": "LETTERS",
-    "kind": "HR tool",
-    "state": "classified",
-    "accent": "#597484",
-    "url": null,
-    "blurb": "Generates HR letters that match the originals to the pixel. Boring on purpose.",
-    "logo": null,
-    "logo_type": "none",
-    "live": false
-  },
-  {
     "slug": "expense",
     "name": "EXPENSE",
     "kind": "Telegram bot",
@@ -187,18 +175,6 @@
     "accent": "#7dffc4",
     "url": null,
     "blurb": "A paper trader that reads the mood of the market. Parked, dignity intact.",
-    "logo": null,
-    "logo_type": "none",
-    "live": false
-  },
-  {
-    "slug": "stock-bot",
-    "name": "STOCK BOT",
-    "kind": "Prediction bot",
-    "state": "dark",
-    "accent": "#7dffc4",
-    "url": null,
-    "blurb": "Ten stocks a day with a confidence score. Parked. The confidence was the problem.",
     "logo": null,
     "logo_type": "none",
     "live": false

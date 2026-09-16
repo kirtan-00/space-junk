@@ -4,28 +4,40 @@
    screens. Self-contained: only uses the THREE namespace passed in. No lights inside
    (the page scales group freely; emissives and additive sprites scale with it).
 
-   makeProp(THREE, { kind, accent }) -> { group, update(dt, t), setDim, setHover, poke, dispose, kind, size }
-     kind     "screen" (THE DVCs)  a 16:9 slab in a silver bezel with a clapper stick on top,
-                                    the screen playing a procedural DVC: light leaks, letterbox,
-                                    play triangle, running timecode.
+   makeProp(THREE, { kind, accent, slate }) -> { group, update(dt, t), setDim, setHover, poke, dispose, kind, size }
+     kind     "screen" (THE DVCs)  a 16:9 monitor in a silver bezel playing a procedural DVC
+                                    (light leaks, letterbox, play triangle, running timecode),
+                                    with a clapperboard slate held in front of its lower left:
+                                    chalk-white slate type on black, the two slate lines, then
+                                    ROLL / SCENE / TAKE fields, striped sticks on top that clap.
               "phone"  (THE REELS) a 9:19.5 phone, silver frame, black glass, a vertical
                                     reel feed scrolling up, IG glyph, heart / comment / share.
-              "truck"  (THE SHOOTS) a flatbed with a cab, six wheels, a camera on a tripod
-                                    and two fresnels on stands with barn doors, lit.
+              "camera" (THE SHOOTS) a cinema camera: boxy body on 15 mm rods, matte box with a
+                                    top flag, big lens with a glass disc, top handle, viewfinder,
+                                    a swung-out side monitor playing the DVC, a battery block
+                                    behind. Floats with a slow zero-g tumble inside a cloud of
+                                    confetti (120 instanced rectangles, six colours) that drifts
+                                    outward, tumbles and recycles so the cloud never empties.
+              "truck"  alias of "camera", kept so older callers do not break.
      accent   hex string for the emissive edge, halo and indicator. Default '#3fe9ff'.
+     slate    string for the slate, default "PRODUCED BY TRULY YOURS". Laid out as two lines:
+              split on a newline or "|" if present, else after the word BY, else at the middle
+              word. Line one small, line two big and shrunk to fit the board.
 
    Geometry: each prop is centred on its own origin and fits a 2.2 wide by 1.6 tall box
-   (size holds the measured Box3 extents). Front faces +Z. The truck carries a baked
-   35 degree yaw so bed, camera and lights silhouette from the front.
+   (size holds the measured Box3 extents; the confetti cloud and halo are excluded).
+   Front faces +Z. The camera carries a baked 52 degree yaw so body, matte box and
+   monitor silhouette from the front; its tumble oscillates around that.
 
    group        yours to place, aim and scale; the module never writes to it. All motion
-                (idle wobble, recoil, wheel spin) runs on an inner rig.
-   update(dt,t) seconds. Call every frame. Canvas screens redraw at most every 100 ms.
-   setDim(d)    0..1. 1 is the dead state: screens fall to 10 percent, emissives and
-                glows to near nothing. Eased over 300 ms.
-   setHover(b)  screens brighten a third, emissives half again, the fresnels flare.
+                (idle wobble, recoil, tumble, confetti) runs on an inner rig.
+   update(dt,t) seconds. Call every frame. Canvas screens redraw at most every 100 ms;
+                the slate redraws only when fonts land or a poke flashes it.
+   setDim(d)    0..1. 1 is the dead state: screens fall to 10 percent, emissives, glows
+                and confetti to near nothing. Eased over 300 ms.
+   setHover(b)  screens brighten a third, emissives half again, the lens glint flares.
    poke()       a small recoil away from the viewer with a spring back, a one-redraw white
-                flash on the screens, the clapper claps, the fresnels burst.
+                flash on the screens, the slate sticks clap, the confetti throws a fresh burst.
    dispose()    frees geometries, materials and canvas textures.
 */
 
@@ -152,8 +164,24 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/* the DVC screen: 512 x 288 */
-function drawDVC(g, W, H, t, accentRgb, flash) {
+/* the slate copy as two lines: explicit break, else after BY, else the middle word */
+function slateLines(s) {
+  const raw = (typeof s === 'string' && s.trim()) ? s.trim() : 'PRODUCED BY TRULY YOURS';
+  let a, b;
+  const brk = raw.split(/\s*(?:\n|\|)\s*/).filter(Boolean);
+  if (brk.length >= 2) { a = brk[0]; b = brk.slice(1).join(' '); }
+  else {
+    const words = raw.split(/\s+/);
+    const by = words.findIndex(w => /^by$/i.test(w));
+    const cut = by > 0 && by < words.length - 1 ? by + 1 : Math.max(1, Math.floor(words.length / 2));
+    if (words.length === 1) { a = ''; b = words[0]; }
+    else { a = words.slice(0, cut).join(' '); b = words.slice(cut).join(' '); }
+  }
+  return [a.toUpperCase(), b.toUpperCase()];
+}
+
+/* the DVC screen: 512 x 288. play sits at playAt (fractions), off centre on the monitor so the slate does not hide it */
+function drawDVC(g, W, H, t, accentRgb, flash, playAt) {
   g.globalCompositeOperation = 'source-over';
   g.fillStyle = '#05060a';
   g.fillRect(0, 0, W, H);
@@ -200,7 +228,7 @@ function drawDVC(g, W, H, t, accentRgb, flash) {
   g.fillRect(0, H - BAR, W, BAR);
 
   /* play triangle in a thin ring */
-  const cx = W / 2, cy = H / 2;
+  const cx = W * (playAt ? playAt[0] : 0.5), cy = H * (playAt ? playAt[1] : 0.5);
   g.strokeStyle = 'rgba(255,255,255,0.9)';
   g.lineWidth = 3;
   g.beginPath(); g.arc(cx, cy, 44, 0, TAU); g.stroke();
@@ -232,6 +260,80 @@ function drawDVC(g, W, H, t, accentRgb, flash) {
   g.fillText('24 FPS', 18, BAR / 2 + 1);
   g.textAlign = 'right';
   g.fillText('2.39 : 1', W - 18, BAR / 2 + 1);
+
+  if (flash > 0) {
+    g.fillStyle = `rgba(255,255,255,${Math.min(1, flash)})`;
+    g.fillRect(0, 0, W, H);
+  }
+}
+
+/* the slate face: 672 x 400. chalk white on black, two lines of copy, ROLL / SCENE / TAKE under a rule */
+function drawSlate(g, W, H, lines, flash) {
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#08080a';
+  g.fillRect(0, 0, W, H);
+  /* chalk dust: a faint haze in the middle and a few wiped strokes */
+  const rg = g.createRadialGradient(W * 0.5, H * 0.42, 10, W * 0.5, H * 0.42, W * 0.65);
+  rg.addColorStop(0, 'rgba(255,255,255,0.055)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,0.022)';
+  g.lineWidth = 26;
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(W * (0.05 + 0.22 * i), H * (0.12 + 0.18 * (i % 2)));
+    g.quadraticCurveTo(W * (0.25 + 0.22 * i), H * 0.55, W * (0.18 + 0.22 * i), H * 0.92);
+    g.stroke();
+  }
+
+  const chalk = 'rgba(242,240,233,0.94)';
+  const soft = 'rgba(242,240,233,0.62)';
+  const rule = 'rgba(242,240,233,0.55)';
+  const yDiv = Math.round(H * 0.615);
+  g.fillStyle = rule;
+  g.fillRect(0, yDiv, W, 2);
+  g.fillRect(Math.round(W / 3), yDiv, 2, H - yDiv);
+  g.fillRect(Math.round(2 * W / 3), yDiv, 2, H - yDiv);
+
+  const spaced = (px) => { try { g.letterSpacing = px + 'px'; } catch (e) { /* older canvas */ } };
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+
+  /* line one, small and tracked */
+  if (lines[0]) {
+    let fs = Math.round(H * 0.105);
+    g.font = `700 ${fs}px ${MONO}`;
+    spaced(fs * 0.18);
+    while (g.measureText(lines[0]).width > W * 0.88 && fs > 14) { fs -= 1; g.font = `700 ${fs}px ${MONO}`; spaced(fs * 0.18); }
+    g.fillStyle = soft;
+    g.fillText(lines[0], W / 2 + fs * 0.09, H * 0.17);
+    spaced(0);
+  }
+  /* line two, the big one, shrunk to the board */
+  let fs = Math.round(H * 0.235);
+  g.font = `700 ${fs}px ${MONO}`;
+  while (g.measureText(lines[1]).width > W * 0.92 && fs > 18) { fs -= 2; g.font = `700 ${fs}px ${MONO}`; }
+  const y2 = lines[0] ? H * 0.415 : H * 0.32;
+  g.fillStyle = 'rgba(242,240,233,0.35)';
+  g.fillText(lines[1], W / 2 + 1.5, y2 + 1.5);
+  g.fillStyle = chalk;
+  g.fillText(lines[1], W / 2, y2);
+
+  /* fields */
+  const fields = [['ROLL', 'A001'], ['SCENE', '14'], ['TAKE', '3']];
+  const labFs = Math.round(H * 0.052), valFs = Math.round(H * 0.15);
+  fields.forEach(([lab, val], i) => {
+    const cx = W * (i + 0.5) / 3;
+    g.font = `400 ${labFs}px ${MONO}`;
+    spaced(labFs * 0.18);
+    g.fillStyle = soft;
+    g.fillText(lab, cx + labFs * 0.09, yDiv + H * 0.075);
+    spaced(0);
+    g.font = `700 ${valFs}px ${MONO}`;
+    g.fillStyle = chalk;
+    g.fillText(val, cx, yDiv + (H - yDiv) * 0.64);
+  });
 
   if (flash > 0) {
     g.fillStyle = `rgba(255,255,255,${Math.min(1, flash)})`;
@@ -370,10 +472,11 @@ function drawReel(g, W, H, t, accentRgb, flash) {
 /* ---------- the factory ---------- */
 
 export function makeProp(THREE, opts = {}) {
-  const kind = opts.kind === 'phone' || opts.kind === 'truck' ? opts.kind : 'screen';
+  const kind = opts.kind === 'phone' ? 'phone' : (opts.kind === 'camera' || opts.kind === 'truck') ? 'camera' : 'screen';
   const accentHex = pickAccent(opts.accent);
   const accent = new THREE.Color(accentHex);
   const accentRgb = hexToRgb(accentHex);
+  const slateText = slateLines(opts.slate);
 
   const group = new THREE.Group();
   group.name = 'prop-' + kind;
@@ -385,6 +488,7 @@ export function makeProp(THREE, opts = {}) {
     silver: new THREE.MeshStandardMaterial({ color: 0xcfcfca, roughness: 0.55, metalness: 0.1 }),
     silverUnder: new THREE.MeshStandardMaterial({ color: 0x9a948c, roughness: 0.5, metalness: 0.1 }),
     charcoal: new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, metalness: 0.05 }),
+    charcoal2: new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide }),
     dark: new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.5, metalness: 0.1 }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.55, metalness: 0.0 }),
     glass: new THREE.MeshStandardMaterial({ color: 0x0b1420, roughness: 0.15, metalness: 0.7, emissive: 0x16324a, emissiveIntensity: 0.7 }),
@@ -395,7 +499,7 @@ export function makeProp(THREE, opts = {}) {
   };
   const ems = [M.accentEm, M.whiteEm, M.warmEm, M.redEm, M.glass].map(m => ({ m, base: m.emissiveIntensity }));
   const textures = [];
-  const screens = [];   /* { mat, canvas, ctx, draw, W, H } */
+  const screens = [];   /* { mat, tex, ctx, draw, W, H, fixed } */
   const sprites = [];   /* { s, base, op } */
   const geos = [];
   const extraMats = [];
@@ -409,6 +513,7 @@ export function makeProp(THREE, opts = {}) {
   };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const cyl = (r1, r2, h, n = 20) => new THREE.CylinderGeometry(r1, r2, h, n);
+  const RX = Math.PI / 2;
 
   /* the accent halo behind every prop: an additive soft ellipse, the pickup's aura */
   const glowTex = glowTexture(THREE);
@@ -423,7 +528,8 @@ export function makeProp(THREE, opts = {}) {
   rig.add(halo);
   const HALO_OP = 0.22;
 
-  const makeScreen = (W, H, draw) => {
+  /* draw(ctx, W, H, t, accentRgb, flash). fixed screens redraw only when dirty (fonts landed, a flash) */
+  const makeScreen = (W, H, draw, fixed) => {
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const tex = new THREE.CanvasTexture(c);
@@ -431,7 +537,7 @@ export function makeProp(THREE, opts = {}) {
     tex.anisotropy = 4;
     textures.push(tex);
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false });
-    screens.push({ mat, tex, ctx: c.getContext('2d'), draw, W, H });
+    screens.push({ mat, tex, ctx: c.getContext('2d'), draw, W, H, fixed: !!fixed });
     return mat;
   };
 
@@ -445,9 +551,10 @@ export function makeProp(THREE, opts = {}) {
   };
 
   /* per-kind state the update loop reads */
-  let clapper = null;      /* pivot group for the clapper stick */
-  let wheels = null;       /* { torus, hub, mats: Matrix4[] } */
-  let lamps = [];          /* fresnel heads for the flicker */
+  let clapper = null;      /* pivot group for the slate's top stick */
+  let camRig = null;       /* the camera's yaw group, for the tumble */
+  let confetti = null;     /* { mesh, n, dir, r, v, drift, rot, av, sc, radii } */
+  let lensGlow = null;
 
   /* ================= SCREEN ================= */
   if (kind === 'screen') {
@@ -462,34 +569,45 @@ export function makeProp(THREE, opts = {}) {
     const lip = mesh(lipGeo, M.accentEm, [0, 0, -0.115]);
     rig.add(lip);
 
-    const scrMat = makeScreen(512, 288, drawDVC);
+    /* the DVC, its play ring moved up and right so the slate does not sit on it */
+    const scrMat = makeScreen(512, 288, (g, w, h, t, a, f) => drawDVC(g, w, h, t, a, f, [0.74, 0.40]));
     const scr = mesh(new THREE.PlaneGeometry(W - 2 * RIM + 0.012, H - 2 * RIM + 0.012), scrMat, [0, 0, 0.012]);
     rig.add(scr);
 
     /* indicator dot, bottom right of the bezel */
-    const dot = mesh(cyl(0.011, 0.011, 0.006, 12), M.accentEm, [W / 2 - RIM / 2, -H / 2 + RIM / 2, 0.052], [Math.PI / 2, 0, 0]);
+    const dot = mesh(cyl(0.011, 0.011, 0.006, 12), M.accentEm, [W / 2 - RIM / 2, -H / 2 + RIM / 2, 0.052], [RX, 0, 0]);
     rig.add(dot);
 
-    /* the clapper: a striped bar fixed along the top edge, a striped stick hinged at the left corner */
+    /* the slate: a black board in a thin silver frame held in front of the lower left of the
+       monitor, turned a few degrees toward the viewer; striped sticks on top, the upper one hinged left */
+    const SW = 1.34, SH = 0.80, SD = 0.03, SR = 0.024;
+    const S = new THREE.Group();
+    S.name = 'slate';
+    S.position.set(-0.27, -0.22, 0.19);
+    S.rotation.set(0, -9 * D2R, 2.5 * D2R);
+    rig.add(S);
+    S.add(mesh(slab(THREE, SW, SH, SD, SR, { bevel: 0.004, curve: 8 }), M.dark, [0, 0, 0]));
+    const frameGeo = slab(THREE, SW + 0.04, SH + 0.04, SD + 0.004, SR + 0.01, { hole: [SW - 0.02, SH - 0.02, SR], bevel: 0.006, curve: 8 });
+    S.add(mesh(frameGeo, [M.silver, M.silverUnder], [0, 0, 0.004]));
+    const slateMat = makeScreen(672, 400, (g, w, h, t, a, f) => drawSlate(g, w, h, slateText, f), true);
+    S.add(mesh(new THREE.PlaneGeometry(SW - 0.05, SH - 0.05), slateMat, [0, 0, SD / 2 + 0.009]));
+
     const stripes = stripeTexture(THREE);
     textures.push(stripes);
     const stripeMat = new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.6, metalness: 0.05 });
     extraMats.push(stripeMat);
-    stripes.repeat.set(9, 1);
-    const barH = 0.075, stickH = 0.07, D = 0.10;
+    stripes.repeat.set(6, 1);
+    const barH = 0.085, stickH = 0.08, D = SD + 0.05;
     const sixMats = [M.dark, M.dark, stripeMat, M.dark, stripeMat, stripeMat];
-    const bar = mesh(box(W, barH, D), sixMats, [0, H / 2 + barH / 2, -0.055]);
-    rig.add(bar);
+    S.add(mesh(box(SW + 0.04, barH, D), sixMats, [0, SH / 2 + 0.02 + barH / 2, 0]));
     clapper = new THREE.Group();
-    clapper.position.set(-W / 2 + 0.05, H / 2 + barH, -0.055);
-    const stick = mesh(box(W, stickH, D * 0.95), sixMats, [W / 2 - 0.05, stickH / 2 + 0.004, 0]);
+    clapper.position.set(-SW / 2 + 0.03, SH / 2 + 0.02 + barH, 0);
+    const stick = mesh(box(SW + 0.04, stickH, D * 0.95), sixMats, [SW / 2 - 0.03 + 0.02, stickH / 2 + 0.004, 0]);
     clapper.add(stick);
-    const hinge = mesh(cyl(0.05, 0.05, D + 0.03, 18), M.silver, [0, 0, 0], [Math.PI / 2, 0, 0]);
-    clapper.add(hinge);
-    const hingeCap = mesh(cyl(0.02, 0.02, D + 0.05, 12), M.accentEm, [0, 0, 0], [Math.PI / 2, 0, 0]);
-    clapper.add(hingeCap);
+    clapper.add(mesh(cyl(0.05, 0.05, D + 0.03, 18), M.silver, [0, 0, 0], [RX, 0, 0]));
+    clapper.add(mesh(cyl(0.02, 0.02, D + 0.05, 12), M.accentEm, [0, 0, 0], [RX, 0, 0]));
     clapper.rotation.z = 8 * D2R;
-    rig.add(clapper);
+    S.add(clapper);
 
     halo.scale.set(2.8, 2.0, 1);
     halo.position.set(0, 0.1, -0.2);
@@ -520,142 +638,153 @@ export function makeProp(THREE, opts = {}) {
     const island = mesh(slab(THREE, 0.22, 0.22, 0.02, 0.06, { bevel: 0.004 }), M.charcoal, [-PW / 2 + 0.16, PH / 2 - 0.16, -0.045]);
     rig.add(island);
     const lenses = merge(THREE, [
-      { geo: cyl(0.045, 0.045, 0.016, 18), m: mat4(THREE, [-PW / 2 + 0.115, PH / 2 - 0.115, -0.062], [Math.PI / 2, 0, 0]) },
-      { geo: cyl(0.045, 0.045, 0.016, 18), m: mat4(THREE, [-PW / 2 + 0.205, PH / 2 - 0.205, -0.062], [Math.PI / 2, 0, 0]) },
+      { geo: cyl(0.045, 0.045, 0.016, 18), m: mat4(THREE, [-PW / 2 + 0.115, PH / 2 - 0.115, -0.062], [RX, 0, 0]) },
+      { geo: cyl(0.045, 0.045, 0.016, 18), m: mat4(THREE, [-PW / 2 + 0.205, PH / 2 - 0.205, -0.062], [RX, 0, 0]) },
     ]);
     rig.add(mesh(lenses, M.glass));
     halo.scale.set(1.7, 2.3, 1);
     halo.position.set(0, 0, -0.2);
   }
 
-  /* ================= TRUCK ================= */
-  if (kind === 'truck') {
-    const T = new THREE.Group();
-    T.name = 'truck-yaw';
-    T.rotation.y = -35 * D2R;
-    rig.add(T);
-    const R = 0.17;
-    /* chassis, deck and rails */
-    T.add(mesh(box(2.02, 0.10, 0.60), M.dark, [0, 0.27, 0]));
-    T.add(mesh(box(1.42, 0.05, 0.78), M.charcoal, [-0.33, 0.345, 0]));
-    const rails = merge(THREE, [
-      { geo: box(0.02, 0.10, 0.78), m: mat4(THREE, [-1.03, 0.42, 0]) },
-      { geo: box(1.42, 0.10, 0.02), m: mat4(THREE, [-0.33, 0.42, 0.38]) },
-      { geo: box(1.42, 0.10, 0.02), m: mat4(THREE, [-0.33, 0.42, -0.38]) },
-      { geo: box(0.02, 0.36, 0.78), m: mat4(THREE, [0.37, 0.55, 0]) },       /* headboard */
-      { geo: box(0.05, 0.08, 0.76), m: mat4(THREE, [1.055, 0.30, 0]) },      /* bumper */
-      { geo: box(0.64, 0.02, 0.76), m: mat4(THREE, [0.72, 0.905, 0]) },      /* roof strip */
-      { geo: box(0.02, 0.02, 0.76), m: mat4(THREE, [1.04, 0.62, 0]) },       /* bonnet line */
-    ]);
-    T.add(mesh(rails, M.silver));
-    /* cab */
-    T.add(mesh(box(0.64, 0.54, 0.74), M.charcoal, [0.72, 0.63, 0]));
-    const windows = merge(THREE, [
-      { geo: new THREE.PlaneGeometry(0.66, 0.26), m: mat4(THREE, [1.043, 0.76, 0], [0, Math.PI / 2, 0]) },
-      { geo: new THREE.PlaneGeometry(0.30, 0.24), m: mat4(THREE, [0.80, 0.75, 0.373], [0, 0, 0]) },
-      { geo: new THREE.PlaneGeometry(0.30, 0.24), m: mat4(THREE, [0.80, 0.75, -0.373], [0, Math.PI, 0]) },
-    ]);
-    T.add(mesh(windows, M.glass));
-    const heads = merge(THREE, [
-      { geo: box(0.02, 0.06, 0.16), m: mat4(THREE, [1.05, 0.46, 0.26]) },
-      { geo: box(0.02, 0.06, 0.16), m: mat4(THREE, [1.05, 0.46, -0.26]) },
-    ]);
-    T.add(mesh(heads, M.whiteEm));
-    const tails = merge(THREE, [
-      { geo: box(0.02, 0.05, 0.10), m: mat4(THREE, [-1.045, 0.30, 0.25]) },
-      { geo: box(0.02, 0.05, 0.10), m: mat4(THREE, [-1.045, 0.30, -0.25]) },
-    ]);
-    T.add(mesh(tails, M.redEm));
+  /* ================= CAMERA ================= */
+  if (kind === 'camera') {
+    /* built at unit scale with the lens down +z, then yawed 52 degrees and scaled up to the box.
+       The -x side faces the viewer: side panel, swung-out monitor. */
+    const C = new THREE.Group();
+    C.name = 'camera-yaw';
+    C.rotation.y = 52 * D2R;
+    C.scale.setScalar(1.42);
+    rig.add(C);
+    camRig = C;
 
-    /* six wheels: instanced torus tyres and hubs */
-    const tyreGeo = new THREE.TorusGeometry(R - 0.055, 0.055, 10, 22);
-    const hubGeo = new THREE.CylinderGeometry(0.095, 0.095, 0.14, 18);
-    hubGeo.rotateX(Math.PI / 2);
-    geos.push(tyreGeo, hubGeo);
-    const tyres = new THREE.InstancedMesh(tyreGeo, M.rubber, 6);
-    const hubs = new THREE.InstancedMesh(hubGeo, M.silver, 6);
-    const capGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.15, 12);
-    capGeo.rotateX(Math.PI / 2);
-    geos.push(capGeo);
-    const caps = new THREE.InstancedMesh(capGeo, M.dark, 6);
-    const wpos = [];
-    for (const x of [0.72, -0.34, -0.76]) for (const z of [0.34, -0.34]) wpos.push([x, R, z]);
-    wheels = { tyres, hubs, caps, wpos, spin: 0 };
-    T.add(tyres, hubs, caps);
-
-    /* camera on a tripod, looking a little off the viewer's line */
-    const legs = merge(THREE, [
-      { geo: cyl(0.022, 0.022, 0.30, 10), m: mat4(THREE, [-0.05, 0.52, 0.04]) },
-      ...[0, 1, 2].map(i => {
-        const a = i * TAU / 3 + 0.4;
-        const sx = Math.cos(a) * 0.16, sz = Math.sin(a) * 0.16;
-        const p = [-0.05 + sx / 2, 0.52, 0.04 + sz / 2];
-        const len = Math.hypot(0.30, 0.16);
-        const tilt = Math.atan2(0.16, 0.30);
-        return { geo: cyl(0.011, 0.011, len, 8), m: mat4(THREE, p, [0, -a, 0]).multiply(mat4(THREE, [0, 0, 0], [0, 0, -tilt])) };
-      }),
+    /* body: charcoal block between two silver plates, a proud side panel with lit details */
+    C.add(mesh(box(0.44, 0.44, 0.72), M.charcoal, [0, 0, -0.02]));
+    const plates = merge(THREE, [
+      { geo: box(0.46, 0.025, 0.74), m: mat4(THREE, [0, 0.232, -0.02]) },
+      { geo: box(0.46, 0.025, 0.74), m: mat4(THREE, [0, -0.232, -0.02]) },
+      { geo: box(0.02, 0.36, 0.56), m: mat4(THREE, [0.225, 0, -0.06]) },        /* far side cheese plate */
+      { geo: new THREE.TorusGeometry(0.17, 0.02, 8, 28), m: mat4(THREE, [0, 0, 0.35]) },   /* lens mount */
+      { geo: box(0.22, 0.03, 0.10), m: mat4(THREE, [0, -0.26, 0.10]) },         /* riser to the rod clamp */
+      { geo: box(0.24, 0.06, 0.05), m: mat4(THREE, [0, -0.33, 0.58]) },         /* front rod bracket */
+      { geo: box(0.05, 0.16, 0.06), m: mat4(THREE, [0, 0.32, -0.26]) },         /* handle posts */
+      { geo: box(0.05, 0.16, 0.06), m: mat4(THREE, [0, 0.32, 0.12]) },
+      { geo: box(0.05, 0.05, 0.62), m: mat4(THREE, [0, 0.425, -0.07]) },        /* handle bar */
+      { geo: box(0.04, 0.05, 0.04), m: mat4(THREE, [0, 0.225, 0.88]) },         /* flag arm */
+      { geo: box(0.36, 0.32, 0.015), m: mat4(THREE, [0, -0.02, -0.387]) },      /* battery V plate */
+      { geo: box(0.04, 0.04, 0.10), m: mat4(THREE, [0.20, 0.30, -0.30]) },      /* viewfinder arm */
     ]);
-    T.add(mesh(legs, M.silver));
-    T.add(mesh(box(0.14, 0.07, 0.12), M.charcoal, [-0.05, 0.705, 0.04]));
-    const camG = new THREE.Group();
-    camG.position.set(-0.05, 0.845, 0.04);
-    camG.rotation.y = 18 * D2R;
-    T.add(camG);
-    camG.add(mesh(box(0.20, 0.21, 0.30), M.charcoal, [0, 0, 0]));
-    camG.add(mesh(cyl(0.08, 0.08, 0.22, 20), M.dark, [0, 0.0, 0.26], [Math.PI / 2, 0, 0]));
-    camG.add(mesh(new THREE.TorusGeometry(0.085, 0.012, 8, 24), M.silver, [0, 0, 0.37]));
-    camG.add(mesh(new THREE.CircleGeometry(0.072, 24), M.glass, [0, 0, 0.372]));
-    const handle = merge(THREE, [
-      { geo: box(0.03, 0.03, 0.30), m: mat4(THREE, [0, 0.15, 0.02]) },
-      { geo: box(0.03, 0.05, 0.03), m: mat4(THREE, [0, 0.12, -0.11]) },
-      { geo: box(0.03, 0.05, 0.03), m: mat4(THREE, [0, 0.12, 0.14]) },
-      { geo: box(0.05, 0.02, 0.02), m: mat4(THREE, [-0.12, -0.02, -0.06]) },
+    C.add(mesh(plates, M.silver));
+    C.add(mesh(box(0.02, 0.30, 0.50), M.dark, [-0.23, 0.0, -0.05]));
+    const lit = merge(THREE, [
+      { geo: box(0.006, 0.012, 0.36), m: mat4(THREE, [-0.243, 0.10, -0.05]) },  /* the accent line along the side */
+      { geo: box(0.005, 0.02, 0.02), m: mat4(THREE, [-0.172, 0.08, -0.455]) },  /* battery LED */
     ]);
-    camG.add(mesh(handle, M.silver));
-    camG.add(mesh(new THREE.PlaneGeometry(0.13, 0.09), M.whiteEm, [-0.14, 0.03, -0.02], [0, -55 * D2R, 0]));
-    camG.add(mesh(cyl(0.032, 0.026, 0.06, 12), M.rubber, [0.03, 0.06, -0.18], [Math.PI / 2, 0, 0]));
+    C.add(mesh(lit, M.accentEm));
+    const buttons = merge(THREE, [-0.20, -0.14, -0.08].map(z => ({ geo: box(0.006, 0.028, 0.028), m: mat4(THREE, [-0.243, -0.06, z]) })));
+    C.add(mesh(buttons, M.whiteEm));
+    /* rods, clamp, rubber bits */
+    const rods = merge(THREE, [
+      { geo: cyl(0.012, 0.012, 1.05, 12), m: mat4(THREE, [0.06, -0.33, 0.13], [RX, 0, 0]) },
+      { geo: cyl(0.012, 0.012, 1.05, 12), m: mat4(THREE, [-0.06, -0.33, 0.13], [RX, 0, 0]) },
+    ]);
+    C.add(mesh(rods, M.silver));
+    C.add(mesh(box(0.22, 0.07, 0.10), M.charcoal, [0, -0.29, 0.10]));
+    C.add(mesh(box(0.056, 0.056, 0.26), M.rubber, [0, 0.425, -0.07]));       /* handle grip */
+    C.add(mesh(box(0.06, 0.02, 0.08), M.dark, [0, 0.46, -0.07]));            /* cold shoe */
 
-    /* two fresnels on stands, heads above the cab roofline, aimed a little down at the viewer */
-    const fresnel = (x, z, yaw) => {
-      const stand = merge(THREE, [
-        { geo: cyl(0.018, 0.018, 0.76, 10), m: mat4(THREE, [x, 0.37 + 0.38, z]) },
-        { geo: cyl(0.075, 0.09, 0.03, 12), m: mat4(THREE, [x, 0.385, z]) },
-        { geo: box(0.05, 0.06, 0.05), m: mat4(THREE, [x, 1.14, z]) },
-      ]);
-      T.add(mesh(stand, M.silver));
-      const head = new THREE.Group();
-      head.position.set(x, 1.16, z);
-      head.rotation.set(-14 * D2R, yaw, 0, 'YXZ');
-      T.add(head);
-      head.add(mesh(cyl(0.13, 0.12, 0.16, 22), M.charcoal, [0, 0, 0], [Math.PI / 2, 0, 0]));
-      head.add(mesh(new THREE.TorusGeometry(0.128, 0.012, 8, 24), M.silver, [0, 0, 0.08]));
-      const disc = mesh(new THREE.CircleGeometry(0.11, 24), M.warmEm, [0, 0, 0.082]);
-      head.add(disc);
-      /* barn doors: four flaps hinged at the front rim, opened 35 degrees out */
-      const F = 35 * D2R, L = 0.20;
-      const flap = (axis, sign, w, h) => {
-        const e = axis === 'x' ? [sign * F, 0, 0] : [0, sign * F, 0];
-        const base = axis === 'x' ? [0, sign * 0.135, 0.085] : [sign * 0.135, 0, 0.085];
-        const off = new THREE.Vector3(axis === 'x' ? 0 : sign * L / 2, axis === 'x' ? sign * L / 2 : 0, 0);
-        off.applyEuler(new THREE.Euler(e[0], e[1], e[2]));
-        const geo = axis === 'x' ? box(w, L, 0.006) : box(L, h, 0.006);
-        return { geo, m: mat4(THREE, [base[0] + off.x, base[1] + off.y, base[2] + off.z], e) };
-      };
-      const doors = merge(THREE, [flap('x', 1, 0.30, 0), flap('x', -1, 0.30, 0), flap('y', -1, 0, 0.22), flap('y', 1, 0, 0.22)]);
-      head.add(mesh(doors, M.charcoal));
-      const glow = makeGlow(0xffd2a0, 0.95, 0.75);
-      glow.position.set(0, 0, 0.16);
-      head.add(glow);
-      lamps.push({ head, glow, disc });
+    /* lens: dark barrel, silver focus ring and front rim, glass, an accent coating ring, a glint */
+    C.add(mesh(cyl(0.15, 0.15, 0.42, 28), M.dark, [0, 0, 0.63], [RX, 0, 0]));
+    const rings = merge(THREE, [
+      { geo: cyl(0.162, 0.162, 0.06, 28), m: mat4(THREE, [0, 0, 0.52], [RX, 0, 0]) },
+      { geo: cyl(0.156, 0.156, 0.03, 28), m: mat4(THREE, [0, 0, 0.835], [RX, 0, 0]) },
+    ]);
+    C.add(mesh(rings, M.silver));
+    C.add(mesh(new THREE.CircleGeometry(0.135, 32), M.glass, [0, 0, 0.852]));
+    C.add(mesh(new THREE.TorusGeometry(0.075, 0.007, 8, 32), M.accentEm, [0, 0, 0.856]));
+    lensGlow = makeGlow(accent.getHex(), 0.55, 0.35);
+    lensGlow.position.set(0, 0, 0.90);
+    C.add(lensGlow);
+
+    /* matte box: rectangular filter stage, a flared hood open at the front, silver front rail, top flag */
+    C.add(mesh(box(0.44, 0.34, 0.08), M.charcoal, [0, 0, 0.655]));
+    const hoodGeo = new THREE.CylinderGeometry(0.26 * Math.SQRT2, 0.19 * Math.SQRT2, 0.20, 4, 1, true, Math.PI / 4);
+    hoodGeo.rotateX(RX);
+    const hood = mesh(hoodGeo, M.charcoal2, [0, 0, 0.80]);
+    hood.scale.y = 0.78;
+    C.add(hood);
+    const rail = mesh(new THREE.TorusGeometry(0.26 * Math.SQRT2, 0.014, 6, 4), M.silver, [0, 0, 0.90], [0, 0, Math.PI / 4]);
+    rail.scale.set(1, 0.78, 1);
+    C.add(rail);
+    const rail2 = mesh(new THREE.TorusGeometry(0.19 * Math.SQRT2, 0.012, 6, 4), M.silver, [0, 0, 0.70], [0, 0, Math.PI / 4]);
+    rail2.scale.set(1, 0.78, 1);
+    C.add(rail2);
+    C.add(mesh(box(0.54, 0.006, 0.18), M.charcoal2, [0, 0.255, 0.98], [-28 * D2R, 0, 0]));
+
+    /* viewfinder on the far top corner, eyecup to the back */
+    C.add(mesh(box(0.11, 0.11, 0.20), M.charcoal, [0.20, 0.24, -0.40]));
+    C.add(mesh(cyl(0.055, 0.045, 0.05, 18), M.rubber, [0.20, 0.24, -0.525], [RX, 0, 0]));
+    /* tally, top front near side */
+    C.add(mesh(cyl(0.02, 0.02, 0.02, 12), M.redEm, [-0.12, 0.255, 0.28]));
+    /* battery block behind */
+    C.add(mesh(box(0.34, 0.30, 0.13), M.dark, [0, -0.02, -0.455]));
+
+    /* side monitor, swung out on the near side and turned to face the viewer, playing the DVC */
+    C.add(mesh(cyl(0.015, 0.015, 0.26, 10), M.silver, [-0.34, 0.16, 0.05], [0, 0, RX]));
+    C.add(mesh(cyl(0.03, 0.03, 0.05, 14), M.dark, [-0.46, 0.16, 0.05], [0, 0, RX]));
+    const MN = new THREE.Group();
+    MN.position.set(-0.50, 0.13, 0.13);
+    MN.rotation.y = -34 * D2R;
+    C.add(MN);
+    const MW = 0.42, MH = 0.26, MF = 0.018;
+    MN.add(mesh(slab(THREE, MW, MH, 0.03, 0.02, { hole: [MW - 2 * MF, MH - 2 * MF, 0.01], bevel: 0.004, curve: 8 }), [M.silver, M.silverUnder], [0, 0, 0]));
+    MN.add(mesh(slab(THREE, MW - 0.02, MH - 0.02, 0.04, 0.018, { bevel: 0 }), M.dark, [0, 0, -0.022]));
+    const monMat = makeScreen(512, 288, drawDVC);
+    MN.add(mesh(new THREE.PlaneGeometry(MW - 2 * MF + 0.006, MH - 2 * MF + 0.006), monMat, [0, 0, 0.012]));
+
+    /* confetti: 120 flat rectangles in six colours, instanced, drifting out of the body and recycling.
+       Lives on the rig, not on the camera, so the cloud stays put while the body tumbles. */
+    const NC = 120;
+    const cfGeo = new THREE.PlaneGeometry(0.085, 0.055);
+    geos.push(cfGeo);
+    const cfMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false });
+    extraMats.push(cfMat);
+    const cf = new THREE.InstancedMesh(cfGeo, cfMat, NC);
+    cf.userData.noBox = true;
+    cf.frustumCulled = false;
+    cf.name = 'confetti';
+    const palette = ['#ff2d78', accentHex, '#ffc247', '#8dff4a', '#b06bff', '#ffffff'].map(h => new THREE.Color(h));
+    for (let i = 0; i < NC; i++) cf.setColorAt(i, palette[i % palette.length]);
+    cf.instanceColor.needsUpdate = true;
+    rig.add(cf);
+    confetti = {
+      mesh: cf, n: NC,
+      dir: new Float32Array(NC * 3), r: new Float32Array(NC), v: new Float32Array(NC), drift: new Float32Array(NC),
+      rot: new Float32Array(NC * 3), av: new Float32Array(NC * 3), sc: new Float32Array(NC),
+      radii: [1.30, 0.95, 0.70],
     };
-    fresnel(-0.84, -0.22, 32 * D2R);
-    fresnel(0.20, -0.24, -10 * D2R);
+    for (let i = 0; i < NC; i++) spawn(i, 0.30 + Math.random() * 0.70, false);
 
     halo.scale.set(3.0, 2.1, 1);
-    halo.position.set(0, 0.55, -0.9);
+    halo.position.set(0, 0, -0.9);
   }
 
-  /* centre the prop on its origin from the measured box (halo and sprites excluded) */
+  /* a confetti piece: a fresh direction, a radius, a speed (burst speeds decay to the drift) and a tumble */
+  function spawn(i, r, burst) {
+    const c = confetti;
+    let x, y, z, l;
+    do { x = Math.random() * 2 - 1; y = Math.random() * 2 - 1; z = Math.random() * 2 - 1; l = x * x + y * y + z * z; } while (l < 0.04 || l > 1);
+    l = Math.sqrt(l);
+    c.dir[i * 3] = x / l; c.dir[i * 3 + 1] = y / l; c.dir[i * 3 + 2] = z / l;
+    c.r[i] = r;
+    c.drift[i] = 0.05 * (0.7 + Math.random() * 0.7);
+    c.v[i] = burst ? 1.0 + Math.random() * 1.0 : c.drift[i];
+    c.rot[i * 3] = Math.random() * TAU; c.rot[i * 3 + 1] = Math.random() * TAU; c.rot[i * 3 + 2] = Math.random() * TAU;
+    const spin = burst ? 5 : 2.2;
+    for (let k = 0; k < 3; k++) c.av[i * 3 + k] = (Math.random() * 2 - 1) * spin * (0.5 + Math.random());
+    c.sc[i] = 0.8 + Math.random() * 0.55;
+  }
+
+  /* centre the prop on its origin from the measured box (halo, sprites and confetti excluded) */
   const bbox = new THREE.Box3();
   {
     rig.updateMatrixWorld(true);
@@ -663,15 +792,6 @@ export function makeProp(THREE, opts = {}) {
     const tmp = new THREE.Box3();
     rig.traverse(o => {
       if (!o.isMesh || o.userData.noBox) return;
-      if (o.isInstancedMesh) {
-        for (const p of (wheels ? wheels.wpos : [])) {
-          const mm = new THREE.Matrix4().makeTranslation(p[0], p[1], p[2]);
-          o.geometry.computeBoundingBox();
-          tmp.copy(o.geometry.boundingBox).applyMatrix4(mm).applyMatrix4(o.parent.matrixWorld);
-          b.union(tmp);
-        }
-        return;
-      }
       o.geometry.computeBoundingBox();
       tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
       b.union(tmp);
@@ -688,11 +808,16 @@ export function makeProp(THREE, opts = {}) {
   let vz = 0, pz = 0, vx = 0, px = 0;
   let clap = 0, burst = 0;
   let fontsHooked = false;
-  const wob = kind === 'phone' ? 1.3 : kind === 'truck' ? 0.6 : 0.9;
+  const wob = kind === 'phone' ? 1.3 : kind === 'camera' ? 0.5 : 0.9;
   const tmpM = new THREE.Matrix4();
+  const tmpP = new THREE.Vector3();
+  const tmpQ = new THREE.Quaternion();
+  const tmpE = new THREE.Euler();
+  const tmpS = new THREE.Vector3();
 
-  function redraw(t) {
+  function redraw(t, all) {
     for (const s of screens) {
+      if (s.fixed && !all) continue;
       s.draw(s.ctx, s.W, s.H, t, accentRgb, flash);
       s.tex.needsUpdate = true;
     }
@@ -702,7 +827,10 @@ export function makeProp(THREE, opts = {}) {
     dt = Math.min(dt || 0, 0.1);
     if (!fontsHooked && typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
       fontsHooked = true;
+      /* ready can resolve before the face is even requested; load() starts the download and resolves
+         when it is usable, which is what the fixed slate canvas needs to redraw out of the fallback */
       document.fonts.ready.then(() => { dirty = true; });
+      try { document.fonts.load("700 20px 'Space Mono'").then(() => { dirty = true; }).catch(() => {}); } catch (e) { /* no FontFaceSet.load */ }
     }
     /* eased states */
     dim += (dimT - dim) * Math.min(1, dt / 0.3);
@@ -740,27 +868,34 @@ export function makeProp(THREE, opts = {}) {
       const shut = clap > 0.6 ? (1 - (clap - 0.6) / 0.4) : clap / 0.6;   /* 0..1..0 */
       clapper.rotation.z = open * D2R * (1 - (clap > 0 ? shut : 0)) + (clap > 0 ? 0.5 * D2R * shut : 0);
     }
-    if (wheels) {
-      wheels.spin += dt * 0.9;
-      for (let i = 0; i < 6; i++) {
-        const p = wheels.wpos[i];
-        tmpM.makeRotationZ(wheels.spin + i * 0.7).setPosition(p[0], p[1], p[2]);
-        wheels.tyres.setMatrixAt(i, tmpM);
-        wheels.hubs.setMatrixAt(i, tmpM);
-        wheels.caps.setMatrixAt(i, tmpM);
+    if (camRig) {
+      /* the zero-g tumble: a slow swing around the baked yaw, a nod and a roll on other periods */
+      camRig.rotation.y = (52 + 13 * Math.sin(t / 11.3 * TAU)) * D2R;
+      camRig.rotation.x = 6 * Math.sin(t / 8.1 * TAU + 1.2) * D2R;
+      camRig.rotation.z = 4 * Math.sin(t / 13.7 * TAU + 0.4) * D2R;
+      /* the tally breathes, the lens glint holds */
+      M.redEm.emissiveIntensity *= 0.75 + 0.25 * Math.sin(t * 2.4);
+    }
+    if (confetti) {
+      const cf = confetti, R = cf.radii;
+      for (let i = 0; i < cf.n; i++) {
+        cf.v[i] += (cf.drift[i] - cf.v[i]) * Math.min(1, dt * 1.6);
+        cf.r[i] += cf.v[i] * dt;
+        if (cf.r[i] > 1) spawn(i, 0.28 + Math.random() * 0.06, false);
+        cf.rot[i * 3] += cf.av[i * 3] * dt; cf.rot[i * 3 + 1] += cf.av[i * 3 + 1] * dt; cf.rot[i * 3 + 2] += cf.av[i * 3 + 2] * dt;
+        const rr = cf.r[i];
+        tmpP.set(cf.dir[i * 3] * rr * R[0], cf.dir[i * 3 + 1] * rr * R[1], cf.dir[i * 3 + 2] * rr * R[2]);
+        tmpQ.setFromEuler(tmpE.set(cf.rot[i * 3], cf.rot[i * 3 + 1], cf.rot[i * 3 + 2]));
+        tmpS.setScalar(cf.sc[i]);
+        cf.mesh.setMatrixAt(i, tmpM.compose(tmpP, tmpQ, tmpS));
       }
-      wheels.tyres.instanceMatrix.needsUpdate = true;
-      wheels.hubs.instanceMatrix.needsUpdate = true;
-      wheels.caps.instanceMatrix.needsUpdate = true;
-      for (let i = 0; i < lamps.length; i++) {
-        const fl = 1 + 0.05 * Math.sin(t * 17 + i * 3) * Math.sin(t * 5.3 + i);
-        lamps[i].glow.material.opacity *= fl;
-      }
+      cf.mesh.instanceMatrix.needsUpdate = true;
+      cf.mesh.material.color.setScalar((1 - 0.88 * dim) * (1 + 0.15 * hover));
     }
 
     acc += dt;
     if (dirty || acc >= 0.1) {
-      redraw(t);
+      redraw(t, dirty);
       acc = 0; dirty = false;
     }
   }
@@ -774,6 +909,15 @@ export function makeProp(THREE, opts = {}) {
     dirty = true;
     burst = 1;
     if (clapper) clap = 1;
+    if (confetti) {
+      /* pieces still near the body get kicked outward from where they are, the far third comes back
+         as a fresh burst from the body, the middle band keeps drifting so the cloud never empties */
+      const cf = confetti;
+      for (let i = 0; i < cf.n; i++) {
+        if (cf.r[i] < 0.45) { cf.v[i] = 0.9 + Math.random() * 0.9; for (let k = 0; k < 3; k++) cf.av[i * 3 + k] *= 2.2; }
+        else if (cf.r[i] > 0.78) spawn(i, 0.26 + Math.random() * 0.08, true);
+      }
+    }
   }
   function dispose() {
     for (const g of geos) g.dispose();
@@ -783,6 +927,7 @@ export function makeProp(THREE, opts = {}) {
     for (const s of screens) s.mat.dispose();
     for (const sp of sprites) sp.s.material.dispose();
     for (const m of extraMats) m.dispose();
+    if (confetti) confetti.mesh.dispose();
   }
 
   update(0, 0);

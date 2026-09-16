@@ -26,7 +26,7 @@
      tunnel.setLandingPoint(x, z)    // where the figure comes to rest (impact() sets it to camera z - 40); the flat patch and hills key off it
      tunnel.setPlane('bliss' | 'grid')   // what setLook('landing') resolves to (default bliss); setLook('landing-grid') forces the wire floor
      tunnel.matrixExit(secs)         // glyph rain persists over the landing and drains away over secs, chromatic split at the start
-     tunnel.plungeStage(name, cutSecs)   // plunge cut list: cubes | lattice | stairs | inverse | rings | shards | cubes-wave | collapse; hard cut by default
+     tunnel.plungeStage(name, cutSecs)   // cut list: prism | prism-tri | inverse | glyphs | collapse (also cubes | lattice | stairs | rings | shards | cubes-wave); hard cut by default
      tunnel.deal()                   // plunge: morph every solid to the next shape (180 ms) and snap the colour pair from the deck
      tunnel.impact(strength)         // landing: floor ring 0 -> 90 units over 700 ms, grid brightens with a damped bounce
      tunnel.landingY()               // -12, the floor height
@@ -217,7 +217,9 @@ const PLUNGE_SMEAR_OFF = 0.6;
 const PLUNGE_STREAK_MAX = 3;             // z stretch cap in the plunge so solids still read as solids at speed
 const PLUNGE_OUTER = 0.7;                // outer 30% starts at this fraction of the shell radius
 const PLUNGE_CAP = 1000;                 // baked solids capacity per shape set (plus smear copies)
-const PLUNGE_STAGES = ['cubes', 'lattice', 'stairs', 'inverse', 'rings', 'shards', 'glyphs', 'cubes-wave', 'collapse'];   // cubes-wave kept, no longer in the cut list
+const PLUNGE_STAGES = ['prism', 'prism-tri', 'inverse', 'glyphs', 'collapse', 'cubes', 'lattice', 'stairs', 'rings', 'shards', 'cubes-wave'];   // cut list uses the first five; the rest stay callable
+const PRISM = {cell: 18, perRing: 32, depth: 1100, ahead: 80, cube: 7, half: 84, triR: 136, fill: 0.05, fillNear: [60, 200], fadeZ: [160, 520], lineOp: 0.8, twist: 0.012, streakMax: 3, morph: 0.6, flash: 0.22, maxK: 0.9};
+const PRISM_RINGS = Math.ceil(PRISM.depth / PRISM.cell) + 2;
 const PLUNGE_HUGE_FRAC = 0.06;           // solids that are huge (60+ units) and ride the outer shell
 const PLUNGE_HUGE_MUL = 3.2;
 const PLUNGE_INK_MUL = 1.8;              // heavier cubes in the inverse stage
@@ -234,11 +236,15 @@ const PLUNGE_STAIRS = {steps: 24, radius: 58, rise: 4.6, tread: [26, 3.5, 15], t
 const PLUNGE_RINGS = {pitch: 30, half: 72, depth: 720, rate: 0.7};
 
 const LAND_Y = -12;
-const LAND_CELL = 12;
-const LAND_SIZE = 1400;                  // floor square (fog takes it to black well before the edge)
+const LAND_CELL = 6;                     // fine grid
+const LAND_MAJOR = 30;                   // second, brighter grid
+const LAND_SIZE = 1400;                  // floor square
 const LAND_PIECE = 24;
-const LAND_FADE = [260, 620];            // distance fade of the floor lines
-const LAND_OP = 0.55;
+const LAND_FADE = [260, 560];            // major lines: distance fade to black
+const LAND_FADE_FINE = [90, 260];        // fine lines fade much earlier so they never pack into a horizon band
+const LAND_OP = 0.35;                    // fine lines, white
+const LAND_MAJOR_OP = 0.55;
+const LAND_CAP = 0.5;                    // alpha cap so stacked far lines never reach white
 const LAND_HORIZON = {dist: 650, width: 1400, height: 7, op: 0.6};
 const LAND_DUST = 400;
 const LAND_KEY = {color: 0xffd9a8, intensity: 0.85};     // warm key from front-left
@@ -480,7 +486,7 @@ export function makeTunnel(THREE, opts = {}) {
   const beatState = {lastBeat: 0, lastBeatGrid: 0};
   const accent = new THREE.Color(), comp = new THREE.Color();
   const tmpA = new THREE.Color(), tmpB = new THREE.Color();
-  const state = {t: 0, gt: 0, slow: !!opts.slow, reduced: !!opts.reduced, camZ: 0, lastBeat: 0};
+  const state = {t: 0, gt: 0, slow: !!opts.slow, reduced: !!opts.reduced, camZ: 0, lastBeat: 0, warm: -1};
   // one shared uniform set drives the bend in every material the module owns
   const bendU = {uBend: {value: new THREE.Vector4(0, BEND_DEFAULT.lx, 0, BEND_DEFAULT.ly)}, uBendPy: {value: BEND_DEFAULT.py}};
   const bend = {from: {ax: 0, ay: 0, lx: BEND_DEFAULT.lx, ly: BEND_DEFAULT.ly, py: BEND_DEFAULT.py}, to: null, t0: 0, cur: null, ease: BEND_EASE};
@@ -1180,8 +1186,37 @@ export function makeTunnel(THREE, opts = {}) {
   plunge.pair = Math.max(0, plunge.pair); plungeColours();
   function deal() {                      // shape morph + colour snap, from the same no-repeat decks
     plunge.prev = plunge.shape; plunge.shape = (plunge.shape + 1) % PLUNGE_SHARD_SET; plunge.morph = 0;   // cycles the four solids, never the shard set
-    plunge.pair = pairDeck.deal(); plungeColours();
+    plunge.pair = pairDeck.deal(); plungeColours(); prismReroll(); plunge.flashT = 0;
   }
+  /* ---- prism: a tunnel built of small cubes in rings; each ring band takes a random deck colour, re-rolled on beats and deals ---- */
+  const prismLines = bakedLines(PRISM_RINGS * PRISM.perRing * 12);
+  const prismFillGeo = new THREE.BoxGeometry(1, 1, 1); disposables.push(prismFillGeo);
+  const prismFillMat = bendable(new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: PRISM.fill, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false}));
+  disposables.push(prismFillMat);
+  const prismFill = new THREE.InstancedMesh(prismFillGeo, prismFillMat, PRISM_RINGS * PRISM.perRing);
+  prismFill.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  prismFill.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PRISM_RINGS * PRISM.perRing * 3), 3); prismFill.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  prismFill.frustumCulled = false; prismFill.visible = false; plungeGroup.add(prismFill);
+  const prism = {roll: 0, flashCol: new THREE.Color(), morphT0: -99};
+  const prismPalette = PAT_PAIRS.map(pr => new THREE.Color(PALETTE[pr[0]]));
+  function prismColour(band) {           // random pick from the whole deck for this band and roll, adjacent bands always differ
+    let k = Math.floor(hash(band * 31 + prism.roll * 7, 221) * prismPalette.length);
+    const prev = Math.floor(hash((band - 1) * 31 + prism.roll * 7, 221) * prismPalette.length);
+    if (k === prev) k = (k + 1) % prismPalette.length;
+    return prismPalette[k];
+  }
+  function prismReroll() { prism.roll++; }
+  // cross-section point at perimeter parameter u in [0, 1): square (4 walls) morphing to a triangle (3 walls)
+  function prismPoint(u, m, out) {
+    const sq = (() => { const side = Math.floor(u * 4), t = u * 4 - side, h = PRISM.half;
+      const c = [[-h, -h], [h, -h], [h, h], [-h, h]], a = c[side], b = c[(side + 1) % 4]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; })();
+    const tr = (() => { const side = Math.floor(u * 3), t = u * 3 - side, R = PRISM.triR;
+      const c = [0, 1, 2].map(k => [R * Math.cos(Math.PI / 2 + k * Math.PI * 2 / 3), R * Math.sin(Math.PI / 2 + k * Math.PI * 2 / 3)]);
+      const a = c[side], b = c[(side + 1) % 3]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; })();
+    out[0] = sq[0] + (tr[0] - sq[0]) * m; out[1] = sq[1] + (tr[1] - sq[1]) * m;
+  }
+  const CUBE_E = SOLID_DEFS[0].e, CUBE_V = SOLID_DEFS[0].v, _pp = [0, 0];
+
   function bakeSolid(set, off, cx, cy, cz, size, e, col, stretchZ) {
     const arr = set.arr, carr = set.col, def = set.def; let o = off;
     for (const [ia, ib] of def.e) for (const iv of [ia, ib]) {
@@ -1196,7 +1231,7 @@ export function makeTunnel(THREE, opts = {}) {
   /* ---- landing: a floor, a horizon, dust ---- */
   const LAND_VERT = /* glsl */`
     ${BEND_GLSL}
-    attribute float aCell;
+    attribute float aCell;         // 0 fine line, 1 major line
     uniform float uOp, uFog, uCamZ, uTime;
     uniform vec4 uImpact;          // x, z, age, strength
     uniform vec3 uCol;
@@ -1204,8 +1239,10 @@ export function makeTunnel(THREE, opts = {}) {
     void main(){
       vec4 wp = modelMatrix * vec4(position, 1.0);
       float dxy = length(vec2(wp.x, wp.z - uCamZ));
-      float fade = 1.0 - smoothstep(${LAND_FADE[0].toFixed(1)}, ${LAND_FADE[1].toFixed(1)}, dxy);
-      float b = ${LAND_OP.toFixed(2)} * fade * (0.85 + 0.15 * sin(uTime * 1.3 + aCell * 20.0));
+      // fine lines fade out early (they pack into a band near the horizon); major lines carry the distance
+      float fadeFine = 1.0 - smoothstep(${LAND_FADE_FINE[0].toFixed(1)}, ${LAND_FADE_FINE[1].toFixed(1)}, dxy);
+      float fadeMajor = 1.0 - smoothstep(${LAND_FADE[0].toFixed(1)}, ${LAND_FADE[1].toFixed(1)}, dxy);
+      float b = mix(${LAND_OP.toFixed(2)} * fadeFine, ${LAND_MAJOR_OP.toFixed(2)} * fadeMajor, aCell);
       if (uImpact.w > 0.0) {
         float age = uImpact.z;
         float ring = ${IMPACT_RING.radius.toFixed(1)} * min(1.0, age / ${IMPACT_RING.secs.toFixed(2)});
@@ -1219,16 +1256,16 @@ export function makeTunnel(THREE, opts = {}) {
       vCol = uCol * b * fog * uOp;
       gl_Position = projectionMatrix * mv;
     }`;
-  const LAND_FRAG = /* glsl */`varying vec3 vCol; void main(){ gl_FragColor = vec4(vCol, 1.0); }`;
+  const LAND_FRAG = /* glsl */`varying vec3 vCol; void main(){ float m = max(vCol.r, max(vCol.g, vCol.b)); float a = min(${LAND_CAP.toFixed(2)}, m); gl_FragColor = vec4(vCol / max(m, 0.001), a); }`;   // alpha-blended and capped so converging lines never sum to white
   const landGeo = (() => {
     const p = [], c = [], H = LAND_SIZE / 2;
-    for (let x = -H; x <= H; x += LAND_CELL) for (let z = 0; z < LAND_SIZE; z += LAND_PIECE) { p.push(x, LAND_Y, -z, x, LAND_Y, -z - LAND_PIECE); const h = hash(x + z * 3, 171); c.push(h, h); }
-    for (let z = 0; z <= LAND_SIZE; z += LAND_CELL) for (let x = -H; x < H; x += LAND_PIECE) { p.push(x, LAND_Y, -z, x + LAND_PIECE, LAND_Y, -z); const h = hash(x * 3 + z, 172); c.push(h, h); }
+    for (let x = -H; x <= H; x += LAND_CELL) for (let z = 0; z < LAND_SIZE; z += LAND_PIECE) { p.push(x, LAND_Y, -z, x, LAND_Y, -z - LAND_PIECE); const m = (Math.round(x) % LAND_MAJOR === 0) ? 1 : 0; c.push(m, m); }
+    for (let z = 0; z <= LAND_SIZE; z += LAND_CELL) for (let x = -H; x < H; x += LAND_PIECE) { p.push(x, LAND_Y, -z, x + LAND_PIECE, LAND_Y, -z); const m = (Math.round(z) % LAND_MAJOR === 0) ? 1 : 0; c.push(m, m); }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); g.setAttribute('aCell', new THREE.Float32BufferAttribute(c, 1));
     disposables.push(g); return g;
   })();
-  const landMat = new THREE.ShaderMaterial({vertexShader: LAND_VERT, fragmentShader: LAND_FRAG, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+  const landMat = new THREE.ShaderMaterial({vertexShader: LAND_VERT, fragmentShader: LAND_FRAG, transparent: true, blending: THREE.NormalBlending, depthWrite: false, toneMapped: false,
     uniforms: {uBend: bendU.uBend, uBendPy: bendU.uBendPy, uOp: {value: 0}, uFog: {value: opts.fogDensity || FOG_DENSITY}, uCamZ: {value: 0}, uTime: {value: 0},
       uImpact: {value: new THREE.Vector4(0, 0, 0, 0)}, uCol: {value: new THREE.Color()}}});
   disposables.push(landMat);
@@ -1244,7 +1281,7 @@ export function makeTunnel(THREE, opts = {}) {
   const landKey = new THREE.DirectionalLight(LAND_KEY.color, LAND_KEY.intensity); landKey.position.set(-1, 0.8, 1);
   const landFill = new THREE.DirectionalLight(LAND_FILL.color, LAND_FILL.intensity); landFill.position.set(0.4, 0.5, -1);
   landGroup.add(landLight, landKey, landFill);
-  const ringGeo = new THREE.RingGeometry(0.9, 1, 64); ringGeo.rotateX(-Math.PI / 2); disposables.push(ringGeo);
+  const ringGeo = new THREE.RingGeometry(0.965, 1, 96); ringGeo.rotateX(-Math.PI / 2); disposables.push(ringGeo);   // thin white ring
   const ringMat = bendable(new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false}));
   disposables.push(ringMat);
   const impactRing = new THREE.Mesh(ringGeo, ringMat); impactRing.visible = false; landGroup.add(impactRing);
@@ -1264,7 +1301,8 @@ export function makeTunnel(THREE, opts = {}) {
     for (let i = 0; i < GLYPH_CHARS.length; i++) g.fillText(GLYPH_CHARS[i], (i % gc) * cw + cw / 2, Math.floor(i / gc) * cw + cw / 2 + 1);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.minFilter = THREE.LinearMipmapLinearFilter; disposables.push(t); return t;
   })();
-  const glyphCellUV = ch => { const i = Math.max(0, GLYPH_CHARS.indexOf(ch)); return [(i % GLYPH_ATLAS[0]) / GLYPH_ATLAS[0], 1 - (Math.floor(i / GLYPH_ATLAS[0]) + 1) / GLYPH_ATLAS[1]]; };
+  const GLYPH_UV = {}; for (let i = 0; i < GLYPH_CHARS.length; i++) GLYPH_UV[GLYPH_CHARS[i]] = [(i % GLYPH_ATLAS[0]) / GLYPH_ATLAS[0], 1 - (Math.floor(i / GLYPH_ATLAS[0]) + 1) / GLYPH_ATLAS[1]];
+  const glyphCellUV = ch => GLYPH_UV[ch] || GLYPH_UV['0'];
   const glyphGeo = new THREE.PlaneGeometry(1, 1);
   const glyphCellAttr = new THREE.InstancedBufferAttribute(new Float32Array(GLYPH_MAX * 2), 2); glyphCellAttr.setUsage(THREE.DynamicDrawUsage);
   glyphGeo.setAttribute('aCell', glyphCellAttr); disposables.push(glyphGeo);
@@ -1285,19 +1323,23 @@ export function makeTunnel(THREE, opts = {}) {
   const wordSlots = [];                  // {word, wall, u, z0}
   GLYPH_WORDS.forEach((w, wi) => { for (let c = 0; c < GLYPH_WORD_COPIES; c++) { const k = wi * 7 + c * 3; wordSlots.push({word: w, wall: Math.floor(hash(k, 185) * 8), u: (hash(k, 186) - 0.5) * 50, z0: -hash(k, 187) * GLYPH_SEG}); } });
   const _gx = new THREE.Vector3(), _gy = new THREE.Vector3(), _gz = new THREE.Vector3(), _gm = new THREE.Matrix4(), _gq = new THREE.Quaternion();
-  function glyphBasis(wall) {            // reading direction along the corridor, up across the wall, facing the axis; right-handed so the front face is inward
+  // per-wall bases, computed once: reading direction along the corridor, up across the wall (up-ish), facing the axis; right-handed so the front face is inward
+  const GLYPH_WALLS = Array.from({length: 8}, (_, wall) => {
     const ak = (wall + 0.5) * Math.PI / 4, nx = Math.cos(ak), ny = Math.sin(ak), tx = -ny, ty = nx;
     _gy.set(tx, ty, 0); if (ty < -0.05 || (Math.abs(ty) <= 0.05 && tx < 0)) _gy.negate();
-    _gz.set(-nx, -ny, 0); _gx.crossVectors(_gy, _gz); _gm.makeBasis(_gx, _gy, _gz); _gq.setFromRotationMatrix(_gm);
-    return [nx, ny, tx, ty];
-  }
+    _gz.set(-nx, -ny, 0); _gx.crossVectors(_gy, _gz);
+    return {nx, ny, tx, ty, dirZ: _gx.z, R: [_gx.x, _gx.y, _gx.z, _gy.x, _gy.y, _gy.z, _gz.x, _gz.y, _gz.z]};
+  });
   const exitCtl = {t0: -99, secs: 0, active: false};
   function matrixExit(secs) { exitCtl.t0 = state.t; exitCtl.secs = Math.max(0.2, secs == null ? 1.5 : secs); exitCtl.active = true; }
   let glyphCount = 0;
-  function putGlyph(x, y, z, size, cellUV, col, offX, offY) {
+  function putGlyph(W, x, y, z, size, cellUV, col) {
     if (glyphCount >= GLYPH_MAX) return;
-    const i = glyphCount++, arr = glyphs.instanceMatrix.array, ca = glyphs.instanceColor.array, cu = glyphCellAttr.array;
-    _o.quaternion.copy(_gq); _o.position.set(x + (offX || 0), y + (offY || 0), z); _o.scale.set(size, size, 1); _o.updateMatrix(); _o.matrix.toArray(arr, i * 16);
+    const i = glyphCount++, arr = glyphs.instanceMatrix.array, ca = glyphs.instanceColor.array, cu = glyphCellAttr.array, R = W.R, o = i * 16;
+    arr[o] = R[0] * size; arr[o + 1] = R[1] * size; arr[o + 2] = R[2] * size; arr[o + 3] = 0;
+    arr[o + 4] = R[3] * size; arr[o + 5] = R[4] * size; arr[o + 6] = R[5] * size; arr[o + 7] = 0;
+    arr[o + 8] = R[6]; arr[o + 9] = R[7]; arr[o + 10] = R[8]; arr[o + 11] = 0;
+    arr[o + 12] = x; arr[o + 13] = y; arr[o + 14] = z; arr[o + 15] = 1;
     ca[i * 3] = col.r; ca[i * 3 + 1] = col.g; ca[i * 3 + 2] = col.b; cu[i * 2] = cellUV[0]; cu[i * 2 + 1] = cellUV[1];
   }
   const _ga = new THREE.Color(), _gb = new THREE.Color(), _gh = new THREE.Color();
@@ -1311,10 +1353,10 @@ export function makeTunnel(THREE, opts = {}) {
       let dy = 0, k = 1;
       if (drain) { const te = exitT - laneSeed * 0.45 * exitSecs; if (te > 0) { dy = -60 * te * te; k = Math.max(0, 1 - te / (0.55 * exitSecs)); } }
       if (k <= 0.01) return;
-      const [nx, ny, tx, ty] = glyphBasis(wall);
+      const W = GLYPH_WALLS[wall], nx = W.nx, ny = W.ny, tx = W.tx, ty = W.ty;
       const x = nx * dist + tx * u, y = ny * dist + ty * u + dy;
-      if (copies === 1) putGlyph(x, y, z, size, cellUV, _ga.copy(col).multiplyScalar(k * weight));
-      else for (let c = 0; c < 3; c++) { const d = (c - 1) * EXIT_SPLIT_OFF * split; putGlyph(x + d * tx, y + d * ty, z, size, cellUV, _ga.copy(_rgb[c]).multiply(col).multiplyScalar(k * weight * 1.5)); }
+      if (copies === 1) putGlyph(W, x, y, z, size, cellUV, _ga.copy(col).multiplyScalar(k * weight));
+      else for (let c = 0; c < 3; c++) { const d = (c - 1) * EXIT_SPLIT_OFF * split; putGlyph(W, x + d * tx, y + d * ty, z, size, cellUV, _ga.copy(_rgb[c]).multiply(col).multiplyScalar(k * weight * 1.5)); }
     };
     for (let i = 0; i < DROP_N; i++) {
       const wall = Math.floor(i / (GLYPH_LANES * GLYPH_DROPS)), lane = Math.floor(i / GLYPH_DROPS) % GLYPH_LANES;
@@ -1331,7 +1373,7 @@ export function makeTunnel(THREE, opts = {}) {
     }
     for (const ws of wordSlots) {
       let z = ws.z0; while (z > camZ + BEHIND) z -= GLYPH_SEG; while (z < camZ + BEHIND - GLYPH_SEG) z += GLYPH_SEG; ws.z0 = z;
-      const [nx, ny, tx, ty] = glyphBasis(ws.wall), dir = _gx.z;   // reading direction along z for this wall
+      const dir = GLYPH_WALLS[ws.wall].dirZ;   // reading direction along z for this wall
       for (let j = 0; j < ws.word.length; j++) {
         const ch = ws.word[j]; if (ch === ' ') continue;
         const zj = z + dir * j * GLYPH_WORD_CELL; if (zj > camZ + BEHIND) continue;
@@ -1426,7 +1468,7 @@ export function makeTunnel(THREE, opts = {}) {
   disposables.push(puffMat);
   const puff = new THREE.Mesh(puffGeo, puffMat); puff.visible = false; blissGroup.add(puff);
 
-  const planeCtl = {plane: 'bliss'};
+  const planeCtl = {plane: 'grid'};
   function setPlane(name) { planeCtl.plane = name === 'grid' || name === 'landing-grid' ? 'grid' : 'bliss'; }
   function setLook(name, fadeSecs) {
     if (name === 'landing') name = planeCtl.plane === 'bliss' ? 'bliss' : 'landing';
@@ -1434,6 +1476,7 @@ export function makeTunnel(THREE, opts = {}) {
     if (name === 'bliss') { blissBase.z = state.camZ; if (!landing.set) { landing.x = 0; landing.z = state.camZ - 35; hillCentre.dirty = true; } }
     if (name != null && !looks[name]) throw new Error('unknown look ' + name);
     lookCtl.name = name; lookCtl.fade = fadeSecs == null ? LOOK_FADE : Math.max(0, fadeSecs);
+    if (name === 'plunge') state.warm = 2;   // next frames: every stage mesh renders empty once so programs compile and buffers upload before any cut
   }
 
   /* ---- colour ---- */
@@ -1762,7 +1805,7 @@ export function makeTunnel(THREE, opts = {}) {
       const spin = reduced ? 0 : 1;
       const rOuter = PLUNGE_R[0] + (PLUNGE_R[1] - PLUNGE_R[0]) * PLUNGE_OUTER;
       const collapse = stage === 'collapse' ? smooth(0, PLUNGE_COLLAPSE_SECS, st) : 0;   // 0 -> 1 over the stage
-      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings' && stage !== 'glyphs';
+      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings' && stage !== 'glyphs' && stage !== 'prism' && stage !== 'prism-tri';
       const offs = plungeSets.map(() => 0);
       const shapeIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.shape, prevIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.prev;
       if (useField) for (let i = 0; i < PLUNGE_N; i++) {
@@ -1857,6 +1900,42 @@ export function makeTunnel(THREE, opts = {}) {
         ringsMesh.geometry.attributes.position.needsUpdate = true; ringsMesh.geometry.attributes.color.needsUpdate = true;
         ringsMesh.material.opacity = plungeW; ringsMesh.material.blending = inv ? THREE.NormalBlending : THREE.AdditiveBlending;
       }
+      // prism tunnel
+      const prismOn = stage === 'prism' || stage === 'prism-tri';
+      prismLines.visible = prismOn; prismFill.visible = prismOn;
+      if (prismOn) {
+        const m = stage === 'prism-tri' ? smooth(0.05, 0.05 + PRISM.morph, st) * (1 - smooth(1.1, 1.1 + PRISM.morph, st)) : 0;   // square -> triangle -> back
+        const streak = Math.min(PRISM.streakMax, stretch), cube = PRISM.cube;
+        const arr = prismLines.geometry.attributes.position.array, carr = prismLines.geometry.attributes.color.array;
+        const fArr = prismFill.instanceMatrix.array, fCol = prismFill.instanceColor.array;
+        const z0 = Math.floor((camZ + PRISM.ahead) / PRISM.cell) * PRISM.cell;
+        let o = 0, n = 0;
+        for (let r = 0; r < PRISM_RINGS; r++) {
+          const z = z0 - r * PRISM.cell, band = Math.round(-z / PRISM.cell), col = prismColour(band);
+          const dz = Math.abs(z - camZ), k = PRISM.maxK * (1 - smooth(PRISM.fadeZ[0], PRISM.fadeZ[1], dz)) * cutK;   // far rings fade out before they can stack into a blast
+          const tw = band * PRISM.twist, ct = Math.cos(tw), stw = Math.sin(tw);
+          if (r === 0) prism.flashCol.copy(col);
+          for (let q = 0; q < PRISM.perRing; q++) {
+            prismPoint(q / PRISM.perRing, m, _pp);
+            const cx = _pp[0] * ct - _pp[1] * stw, cy = _pp[0] * stw + _pp[1] * ct;
+            for (const [ia, ib] of CUBE_E) for (const iv of [ia, ib]) { const v = CUBE_V[iv];
+              arr[o] = cx + v[0] * cube; arr[o + 1] = cy + v[1] * cube; arr[o + 2] = z + v[2] * cube * streak;
+              carr[o] = col.r * k; carr[o + 1] = col.g * k; carr[o + 2] = col.b * k; o += 3; }
+            const i16 = n * 16; fArr.fill(0, i16, i16 + 16); fArr[i16] = cube * 0.92; fArr[i16 + 5] = cube * 0.92; fArr[i16 + 10] = cube * 0.92 * streak; fArr[i16 + 15] = 1;
+            fArr[i16 + 12] = cx; fArr[i16 + 13] = cy; fArr[i16 + 14] = z;
+            const fk = k * smooth(PRISM.fillNear[0], PRISM.fillNear[1], dz);   // no fill on the cubes passing close to the lens, so they never bloom to white
+            fCol[n * 3] = col.r * fk; fCol[n * 3 + 1] = col.g * fk; fCol[n * 3 + 2] = col.b * fk; n++;
+          }
+        }
+        prismLines.geometry.setDrawRange(0, o / 3);
+        prismLines.geometry.attributes.position.needsUpdate = true; prismLines.geometry.attributes.color.needsUpdate = true;
+        prismLines.material.opacity = PRISM.lineOp * plungeW; prismLines.material.blending = THREE.NormalBlending;   // alpha, not additive: stacked far rings saturate at their colour, never white
+        prismFill.count = n; prismFill.instanceMatrix.needsUpdate = true; prismFill.instanceColor.needsUpdate = true;
+        prismFillMat.opacity = PRISM.fill * plungeW;
+        // soft background flash toward the nearest band's colour, following each re-roll
+        const sc3 = group.parent;
+        if (sc3 && sc3.background && sc3.background.isColor && plunge.flashT < PLUNGE_BEAT_INV * 1.6) sc3.background.lerp(prism.flashCol, PRISM.flash * (1 - plunge.flashT / (PLUNGE_BEAT_INV * 1.6)));
+      }
       // beat flash: the background takes the pair's colour at 25% for the swap window
       const sc2 = group.parent;
       if (sc2 && sc2.background && sc2.background.isColor && plunge.flashT < PLUNGE_BEAT_INV) sc2.background.lerp(tmpB.copy(plunge.colA), 0.25 * (1 - plunge.flashT / PLUNGE_BEAT_INV));
@@ -1865,9 +1944,9 @@ export function makeTunnel(THREE, opts = {}) {
     /* ---------- landing ---------- */
     landGroup.visible = landW > 0.004;
     if (landGroup.visible) {
-      landFloor.position.z = Math.ceil((camZ + 200) / LAND_CELL) * LAND_CELL;
+      landFloor.position.z = Math.ceil((camZ + 200) / LAND_MAJOR) * LAND_MAJOR;   // snap by the major cell so both grids stay put
       const u = landMat.uniforms;
-      u.uOp.value = landW; u.uCamZ.value = camZ; u.uTime.value = reduced ? 0 : state.t; u.uCol.value.copy(accent).lerp(tmpB.set(1, 1, 1), 0.25);
+      u.uOp.value = landW; u.uCamZ.value = camZ; u.uTime.value = reduced ? 0 : state.t; u.uCol.value.setRGB(1, 1, 1);   // no tint: white lines on black
       impactState.age += dt;
       u.uImpact.value.set(impactState.x, impactState.z, impactState.age, impactState.age < 3 ? impactState.strength : 0);
       const rt = Math.min(1, impactState.age / IMPACT_RING.secs), rr = IMPACT_RING.radius * rt;
@@ -1876,13 +1955,13 @@ export function makeTunnel(THREE, opts = {}) {
         const c = curve(impactState.z);
         impactRing.position.set(impactState.x, LAND_Y + 0.2, impactState.z);
         impactRing.scale.set(rr + 0.01, 1, rr + 0.01);
-        ringMat.color.copy(accent).lerp(tmpB.set(1, 1, 1), 0.4);
+        ringMat.color.setRGB(1, 1, 1);
         ringMat.opacity = impactState.strength * (1 - rt) * landW;
       }
-      { const hz = camZ - LAND_HORIZON.dist, c = curve(hz); horizon.position.set(c.x, LAND_Y + c.y, hz); }
+      horizon.visible = false;   // black horizon, no glow line
       { const lz = camZ - BLACKOUT_LIGHT.dist, c = curve(lz); landLight.position.set(c.x, c.y + 6, lz); landLight.color.copy(accent).lerp(tmpB.set(1, 1, 1), 0.3); landLight.intensity = BLACKOUT_LIGHT.intensity * landW; }
       landKey.intensity = LAND_KEY.intensity * landW; landFill.intensity = LAND_FILL.intensity * landW;
-      horizonMat.color.copy(accent); horizonMat.opacity = LAND_HORIZON.op * landW;
+      landDust.pts.visible = false;   // nothing in the air over the plain grid
       const du = landDust.mat.uniforms;
       du.uTime.value = state.gt; du.uHeight.value = s.viewportHeight || du.uHeight.value; du.uStretch.value = 0;
       du.uWeight.value = landW * 0.3; du.uCamZ.value = camZ; du.uReduced.value = reduced ? 1 : 0; du.uHigh.value = high;
@@ -1931,6 +2010,20 @@ export function makeTunnel(THREE, opts = {}) {
         }
       }
     }
+
+    if (state.warm > 0) {
+      // warm-up: draw every plunge stage mesh (and the glyph rain) with nothing in it, so shader compiles and buffer uploads happen here, not on a cut
+      state.warm--;
+      const empties = [latticeMesh, ringsMesh, stairsMesh, prismLines, ...plungeSets.map(p => p.mesh)];
+      for (const mm of empties) if (!mm.visible) { mm.visible = true; mm.userData.warm = true; mm.geometry.setDrawRange(0, 0); }
+      if (!prismFill.visible) { prismFill.visible = true; prismFill.userData.warm = true; prismFill.count = 0; }
+      if (!glyphs.visible) { glyphs.visible = true; glyphs.userData.warm = true; glyphs.count = 0; }
+      plungeGroup.visible = true;
+    } else if (state.warm === 0) {
+      state.warm = -1;
+      for (const mm of [latticeMesh, ringsMesh, stairsMesh, prismLines, prismFill, glyphs, ...plungeSets.map(p => p.mesh)]) if (mm.userData.warm) { mm.userData.warm = false; mm.visible = false; if (mm.geometry.setDrawRange) mm.geometry.setDrawRange(0, Infinity); }
+    }
+
   }
 
   function pushPulse(z0, amp) { if (pulses.length >= PULSE_MAX) pulses.shift(); pulses.push({z0, age: 0, amp: clamp01(amp == null ? 1 : amp)}); }
@@ -1944,7 +2037,7 @@ export function makeTunnel(THREE, opts = {}) {
     const z = camZ - (RIPPLE_AHEAD[0] + hash(k + Math.floor(state.t * 1000), 71) * (RIPPLE_AHEAD[1] - RIPPLE_AHEAD[0]));
     ripples.push({z, age: 0, strength: clamp01(strength == null ? 1 : strength)});
     pushPulse(camZ, strength);
-    if (looks.plunge.w > 0.5) { plunge.invT = 0; plunge.flashT = 0; }   // plunge: invert the pair and flash the background for 120 ms
+    if (looks.plunge.w > 0.5) { plunge.invT = 0; plunge.flashT = 0; prismReroll(); }   // plunge: invert the pair, re-roll the prism bands, flash the background
   }
 
   /* ---- mirror room ---- */

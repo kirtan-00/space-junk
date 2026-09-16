@@ -48,14 +48,14 @@
      setSuitTint(hex|null)  light emissive tint on the knit and trousers.
      setIntent(v) 0..1, eased over 300 ms. At 1 the eyes narrow to 35 percent height,
                   slide together, brighten 1.3x with a faint accent tint, and blink less.
-     land(s)      jetpack touchdown in three beats, driven by update's t:
-                  burn 0..700 ms: hover pose, mains hard down, pack light bright, a wobble,
-                    held 0.30 above the ground;
-                  touch 700..1000 ms: mains cut, the drop, impact at 850 ms with the squash and
-                    bounce, soles flash, pack light dims, brace pose;
-                  stand 1000 ms on: rise into stand with the settle, grounded idle switches on,
-                    a short blue puff at 1350 ms as the sign-off.
-                  Reduced motion: straight to stand, grounded.
+     land(s)      one continuous landing, about 1.9 s, driven by update's t: legs swing
+                  down first (250 ms, overshoot), the torso rights itself and the arms come
+                  forward for balance, the mains flare at 300 ms and the body decelerates into
+                  a felt hover, knees bend before contact, contact at 1050 ms (squash, heels
+                  then toes, arms swing back, one head bob, cables whip, soles flash), the rise
+                  into stand from 1200 ms with a weight shift, a sign-off puff at 1750 ms.
+                  Joints run under-damped springs during the motion. Reduced motion: straight
+                  to stand, grounded.
      landPhase()  'burn' | 'touch' | 'stand' | null (null when no landing is running; the
                   'stand' phase reports until 3.5 s after the start).
      setGrounded(b)  true turns off the tumble and the zero-g bob and runs a weight-shift
@@ -64,6 +64,9 @@
                   collar and shoulder spread x1.25, upper arms and thighs x1.35, forearms and
                   shins x1.2, the set x1.2 with a thicker bezel, sneakers x1.3 wide, cables
                   x1.5 thick, stance wider in "stand". Proportions only; group scale is yours.
+     setHeadTrack(b)  END mode for the cursor: the whole set yaws up to 18 deg and pitches up
+                  to 10 deg toward lookAt through a 0.25 s spring, the torso counter-rotates
+                  15 percent, the body does not shift. Eyes still lead.
      setRim(intensity, hex)  a DirectionalLight on the rig from behind-above, default 0.
                   1 is a clear rim on the charcoal knit, 3 is hard. Scaled x8 internally.
      glass        the screen mesh, for raycasting.
@@ -386,7 +389,6 @@ export function makeCRT(THREE, opts = {}) {
   const knitColor = new THREE.Color(darkKnit ? 0x1c1e24 : 0xf0f0ea);
   const knit = new THREE.MeshPhysicalMaterial({
     color: knitColor, roughness: 0.35, metalness: 0.02, clearcoat: 0.6, clearcoatRoughness: 0.25,
-    emissive: knitColor.clone(), emissiveIntensity: 0.02,
   });
   /* joints, mitts, boots: a shade apart from the suit so the segments read */
   const jointMat = new THREE.MeshPhysicalMaterial({ color: darkKnit ? 0x2a2c34 : 0xdcdad3, roughness: 0.3, metalness: 0.05, clearcoat: 0.5, clearcoatRoughness: 0.3 });
@@ -395,8 +397,11 @@ export function makeCRT(THREE, opts = {}) {
   const sole = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x121316 : 0x2a2c33, roughness: 0.7, metalness: 0.0 });
   const plateMat = new THREE.MeshPhysicalMaterial({ color: darkKnit ? 0x23252c : 0xe9e8e2, roughness: 0.33, metalness: 0.04, clearcoat: 0.6, clearcoatRoughness: 0.25 });
   /* the cool blue accent: joints, pack strip, boot soles, chest, neck */
-  const blueMat = new THREE.MeshStandardMaterial({ color: 0x0a2233, emissive: BLUE.clone(), emissiveIntensity: 1.1, roughness: 0.4 });
-  const soleLine = blueMat;
+  /* painted matte blue bands; only the pack strip and the soles carry a low glow */
+  const blueMat = new THREE.MeshStandardMaterial({ color: BLUE.clone().multiplyScalar(0.85), roughness: 0.55, metalness: 0.0 });
+  const blueLit = new THREE.MeshStandardMaterial({ color: 0x1a4a66, emissive: BLUE.clone(), emissiveIntensity: 0.35, roughness: 0.5 });
+  const soleLine = blueLit;
+  const seamMat = new THREE.MeshStandardMaterial({ color: darkKnit ? 0x0d0e12 : 0x8e8d88, roughness: 0.6, metalness: 0.0 });
   const ringMetal = new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.3, metalness: 0.85 });
 
   /* ----- helpers ----- */
@@ -535,7 +540,7 @@ export function makeCRT(THREE, opts = {}) {
   head.add(jport);
 
   /* the screen is a light on the collar and the shoulders; the tube is mostly black so it is soft */
-  const light = new THREE.PointLight(0xbfc6cc, 1.2, 3.0, 2);
+  const light = new THREE.PointLight(0xbfc6cc, 0.4, 2.2, 2);
   light.position.set(0, GL_Y - 0.05, 0.42);
   head.add(light);
 
@@ -555,7 +560,7 @@ export function makeCRT(THREE, opts = {}) {
     [0.092, 0.53], [0.088, 0.56],
   ].map(([r, y]) => new THREE.Vector2(r, y));
   const torso = new THREE.Mesh(new THREE.LatheGeometry(tProfile, 44), knit);
-  torso.scale.set(1.42, 0.92, 0.78);   /* rounder, a touch shorter */
+  torso.scale.set(1.36, 0.95, 0.66);   /* rounded but not a barrel */
   bulkPart(torso, 0.25, 0, 0.25);
   spine.add(torso);
   /* chest plate: a soft rounded box on the front */
@@ -589,7 +594,7 @@ export function makeCRT(THREE, opts = {}) {
   pack.position.set(0, 0.26, -0.27);
   spine.add(pack);
   bulkPart(pack, 0.25, 0.1, 0.25);
-  const packStrip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.01), blueMat);
+  const packStrip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.01), blueLit);
   packStrip.position.set(0, 0.36, -0.315);
   spine.add(packStrip);
   bulkPart(packStrip, 0.25, 0, 0);
@@ -634,16 +639,24 @@ export function makeCRT(THREE, opts = {}) {
     m.position.set(0, y, 0);
     parent.add(m);
     bulkPart(m, gain, 0, gain);
+    /* thin dark seam lines at the segment ends so the surface is not blank plastic */
+    for (const sy of [-len / 2 + r * 0.25, len / 2 - r * 0.25]) {
+      const seam = new THREE.Mesh(new THREE.TorusGeometry(r * 0.985, 0.0035, 6, 28), seamMat);
+      seam.rotation.x = Math.PI / 2;
+      seam.position.set(0, y + sy, 0);
+      parent.add(seam);
+      bulkPart(seam, gain, 0, gain);
+    }
     return m;
   };
   for (const sgn of [-1, 1]) {
     const side = sgn > 0 ? 'R' : 'L';
     const sh = jointOf('shoulder' + side, spine, sgn * 0.245, 0.44, 0);
     shoulderJoints.push([sh, sgn * 0.245]);
-    ball(sh, 0.088, -0.01, 0.35);
+    ball(sh, 0.079, -0.01, 0.35);
     tube(sh, 0.056, 0.12, -0.14, 0.35);
     const el = jointOf('elbow' + side, sh, 0, -0.26, 0);
-    ball(el, 0.078, 0, 0.3);
+    ball(el, 0.070, 0, 0.3);
     tube(el, 0.05, 0.10, -0.10, 0.2);
     /* wrist cuff ring in blue, then one round ball mitt */
     const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.011, 8, 24), blueMat);
@@ -667,21 +680,21 @@ export function makeCRT(THREE, opts = {}) {
     for (const sgn of [-1, 1]) {
       const side = sgn > 0 ? 'R' : 'L';
       const hip = jointOf('hip' + side, pelvis, sgn * 0.115, -0.04, 0);
-      ball(hip, 0.11, -0.01, 0.35);
-      tube(hip, 0.078, 0.10, -0.15, 0.35);
-      const kn = jointOf('knee' + side, hip, 0, -0.30, 0);
-      ball(kn, 0.095, 0, 0.3);
-      tube(kn, 0.066, 0.08, -0.12, 0.2);
+      ball(hip, 0.099, -0.01, 0.35);
+      tube(hip, 0.078, 0.13, -0.165, 0.35);
+      const kn = jointOf('knee' + side, hip, 0, -0.33, 0);
+      ball(kn, 0.086, 0, 0.3);
+      tube(kn, 0.066, 0.11, -0.135, 0.2);
       /* boot: a thick rounded block with the blue sole line */
       const bootShape = roundedRect(-0.095, -0.075, 0.19, 0.15, 0.05);
       const boot = new THREE.Mesh(new THREE.ExtrudeGeometry(bootShape, { depth: 0.20, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.025, bevelSegments: 4, curveSegments: 8 }), extremity);
-      boot.position.set(0, -0.30, -0.08);
+      boot.position.set(0, -0.33, -0.08);
       kn.add(boot);
       const soleM = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.03, 0.28), sole);
-      soleM.position.set(0, -0.39, 0.045);
+      soleM.position.set(0, -0.42, 0.045);
       kn.add(soleM);
       const line = new THREE.Mesh(new THREE.BoxGeometry(0.196, 0.01, 0.286), soleLine);
-      line.position.set(0, -0.372, 0.045);
+      line.position.set(0, -0.402, 0.045);
       kn.add(line);
       soleLines.push(line);
       shoes.push(boot, soleM, line);
@@ -857,10 +870,18 @@ export function makeCRT(THREE, opts = {}) {
     brake: { spine: [0.25, 0, 0], head: [-0.175, 0, 0],
       shoulder: s => [0.10, s * 0.30, s * 1.40], elbow: s => [0.0, 0, s * 0.05],
       hip: s => [0.28, 0, s * 0.60], knee: s => [0.75, 0, 0] },
-    /* hover: upright under the jetpack, legs down and a little apart, arms out for balance */
-    hover: { spine: [0.04, 0, 0], head: [0.06, 0, 0],
-      shoulder: s => [0.05, 0, s * 0.45], elbow: s => [-0.35, 0, s * 0.10],
-      hip: s => [-0.15, 0, s * 0.10], knee: s => [0.30, 0, 0] },
+    /* legsdown: the first beat of the landing, legs swung under while the arms still trail */
+    legsdown: { spine: [-0.20, 0, 0], head: [0.05, 0, 0],
+      shoulder: s => [0.45, 0, s * 0.20], elbow: s => [-0.10, 0, 0],
+      hip: s => [-0.90, 0, s * 0.06], knee: s => [0.25, 0, 0] },
+    /* hover: upright under the jetpack, legs down and a little apart, arms forward and out */
+    hover: { spine: [0.02, 0, 0], head: [0.04, 0, 0],
+      shoulder: s => [-0.50, 0, s * 0.60], elbow: s => [-0.40, 0, s * 0.10],
+      hip: s => [-0.12, 0, s * 0.10], knee: s => [0.25, 0, 0] },
+    /* antic: knees bend before contact */
+    antic: { spine: [0.15, 0, 0], head: [0.10, 0, 0],
+      shoulder: s => [-0.30, 0, s * 0.70], elbow: s => [-0.30, 0, s * 0.10],
+      hip: s => [-0.45, 0, s * 0.12], knee: s => [0.70, 0, 0] },
     /* brace: the touchdown crouch, knees bent 55 deg, arms out low, set pitched down 8 deg */
     brace: { spine: [0.15, 0, 0], head: [0.14, 0, 0],
       shoulder: s => [0.10, 0, s * 0.60], elbow: s => [-0.20, 0, s * 0.05],
@@ -869,7 +890,8 @@ export function makeCRT(THREE, opts = {}) {
       shoulder: s => [-1.30, 0, -s * 0.25], elbow: s => [-1.10, 0, s * 0.35],
       hip: s => [-1.75, 0, s * 0.18], knee: s => [2.25, 0, 0] },
   };
-  const poseW = { stand: full ? 0 : 1, fall: full ? 1 : 0, brake: 0, tuck: 0, brace: 0, hover: 0 };
+  const poseW = { stand: full ? 0 : 1, fall: full ? 1 : 0, brake: 0, tuck: 0, brace: 0, hover: 0, legsdown: 0, antic: 0 };
+  let landFrom = null;   /* the pose weights at the moment land() started */
   const JOINT_K = 15, HEAD_K = 14;
   const jointNames = ['spine', 'head', 'shoulderR', 'shoulderL', 'elbowR', 'elbowL', 'hipR', 'hipL', 'kneeR', 'kneeL'];
   const JS = {};
@@ -902,20 +924,29 @@ export function makeCRT(THREE, opts = {}) {
   let landMain = 0;          /* the landing's own demand on the mains, on top of setThrust */
   let landLift = 0;          /* hover height during the burn */
   let soleFlash = 0;
-  const LAND_TOUCH = 0.70, LAND_IMPACT = 0.85, LAND_STAND = 1.0, LAND_PUFF = 1.35;
+  /* one continuous motion, about 1.9 s. Beats (seconds from land()):
+     0.00 legs swing down first (hips 0 to 0.9 rad in 250 ms, overshoot)
+     0.25 the torso rights itself, arms come forward and out for balance
+     0.30 mains fire down with a flare, the body decelerates into a felt hover
+     0.90 knees bend before contact (anticipation)
+     1.05 contact: squash, heels then toes, arms swing back, one head bob, cables whip
+     1.20 the rise into stand, weight shift left foot to right, hands settle
+     1.75 sign-off puff */
+  const LAND_IMPACT = 1.05, LAND_STAND = 1.20, LAND_PUFF = 1.75;
+  let landHeadBob = 0, landZeta = 1;
   function land(strength) {
     landS = strength == null ? 1 : Math.min(Math.max(+strength || 0, 0), 1);
     landT = 0;
     landStage = 0;
     if (REDUCED) { setPose('stand', 1); groundedOn = true; landT = Infinity; return; }
-    setPose('hover', 1);
   }
   function landPhase() {
     if (landT === Infinity) return null;
-    if (landT < LAND_TOUCH) return 'burn';
+    if (landT < 1.0) return 'burn';
     if (landT < LAND_STAND) return 'touch';
     return 'stand';
   }
+  const sstep = (a, b, x) => { const u = Math.min(Math.max((x - a) / (b - a), 0), 1); return u * u * (3 - 2 * u); };
   function setGrounded(on) { groundedOn = !!on; }
 
   /* ----- tumble and facing on tum ----- */
@@ -984,6 +1015,8 @@ export function makeCRT(THREE, opts = {}) {
   const YAW_MAX = 26 * D2R, PITCH_MAX = 14 * D2R;
   const HEAD_SHARE = 0.75;
   let lookK = 14, lookC = 2 * Math.sqrt(14);
+  let headTrack = false;
+  function setHeadTrack(on) { headTrack = !!on; }
   const look = { yaw: 0, pitch: 0, vy: 0, vp: 0, tx: 0, ty: 0, nx: 0, ny: 0, last: -Infinity };
   const shift = { x: 0, v: 0, recoil: 0, rv: 0 };
   let hoverOn = false, hoverAmt = 0;
@@ -996,8 +1029,8 @@ export function makeCRT(THREE, opts = {}) {
     const cx = Math.min(Math.max(+nx || 0, -1), 1);
     const cy = Math.min(Math.max(+ny || 0, -1), 1);
     look.nx = cx; look.ny = cy;
-    look.tx = cx * YAW_MAX;
-    look.ty = -cy * PITCH_MAX;
+    look.tx = cx * (headTrack ? 18 * D2R : YAW_MAX);
+    look.ty = -cy * (headTrack ? 10 * D2R : PITCH_MAX);
     look.last = nowMs();
   }
   function setPointer(u, v) {
@@ -1078,53 +1111,68 @@ export function makeCRT(THREE, opts = {}) {
     groundedAmt += ((groundedOn ? 1 : 0) - groundedAmt) * Math.min(1, dt / 0.5);
     const zeroG = 1 - groundedAmt;
 
-    /* landing timeline, three beats:
-       burn 0..0.70: hover pose, mains hard down, a hover wobble, held 0.30 above the ground
-       touch 0.70..1.0: mains cut, the drop, impact at 0.85 with the squash, soles flash, pack dims
-       stand 1.0..: rise into stand with the settle, grounded idle, a sign-off puff at 1.35 */
-    let squash = 0, settle = 0;
-    landMain = 0; soleFlash = Math.max(0, soleFlash - dt / 0.25);
+    /* landing: a continuous blend of keyframe poses through the joint springs */
+    let squash = 0, settle = 0, wobble = 0, armSwing = 0, toeRoll = 0, weightShift = 0;
+    landMain = 0; landHeadBob = 0; landZeta = 1; soleFlash = Math.max(0, soleFlash - dt / 0.25);
     if (landT !== Infinity) {
       const prev = landT;
+      if (landT === 0) landFrom = Object.assign({}, poseW);
       landT += dt;
-      if (landT < LAND_TOUCH) {
-        landMain = landS * (0.85 + 0.15 * Math.sin(t * 23.0) * Math.sin(t * 17.0));
-        const ramp = Math.min(1, landT / 0.25);
-        landLift = 0.30 * ramp + 0.012 * Math.sin(t * TAU / 0.7) * ramp;
-      } else if (landT < LAND_STAND) {
-        /* the drop: 0.30 in 150 ms under gravity, then the ground */
-        const f = Math.min(1, (landT - LAND_TOUCH) / (LAND_IMPACT - LAND_TOUCH));
-        landLift = 0.30 * (1 - f * f);
-        if (prev < LAND_TOUCH) setPose('brace', 1);
-        if (prev < LAND_IMPACT && landT >= LAND_IMPACT) { chaseT = 0; blinkT = 0; soleFlash = 1; sway.z -= 0.10 * landS; sway.x += 0.05 * landS; }
-      } else {
-        landLift = 0;
-        if (landStage < 1) { landStage = 1; setPose('stand', 1); groundedOn = true; }
-        if (landT >= LAND_PUFF && landT < LAND_PUFF + 0.16) landMain = 0.35 * landS;
+      const L = landT;
+      /* pose weights along the timeline */
+      const wLegs = sstep(0.0, 0.25, L) * (1 - sstep(0.25, 0.55, L));
+      const wHover = sstep(0.25, 0.55, L) * (1 - sstep(0.90, 1.05, L));
+      const wAntic = sstep(0.90, 1.05, L) * (1 - sstep(1.05, 1.20, L));
+      const wBrace = sstep(1.05, 1.20, L) * (1 - sstep(1.20, 1.70, L));
+      const wStand = sstep(1.20, 1.70, L);
+      const wStart = 1 - sstep(0.0, 0.25, L);
+      for (const k in poseW) poseW[k] = (landFrom[k] || 0) * wStart;
+      poseW.legsdown += wLegs; poseW.hover += wHover; poseW.antic += wAntic; poseW.brace += wBrace; poseW.stand += wStand;
+      /* under-damped joints while the body is still moving, settled after */
+      landZeta = L < LAND_STAND ? 0.62 : 0.85;
+      /* mains: flare at 0.30, hard burn, cut just before contact, puff at the end */
+      if (L >= 0.30 && L < 1.02) {
+        const flare = 1 + 0.35 * Math.exp(-(L - 0.30) * 12);
+        landMain = Math.min(1, landS * sstep(0.30, 0.42, L) * flare * (0.9 + 0.1 * Math.sin(t * 23.0) * Math.sin(t * 17.0)));
       }
-      const tau = landT - LAND_IMPACT;
+      if (L >= LAND_PUFF && L < LAND_PUFF + 0.16) landMain = 0.35 * landS;
+      /* lift: the jets catch him at 0.30, a felt hover, then a slow drift and the drop */
+      landLift = 0.30 * sstep(0.30, 0.60, L) * (1 - 0.27 * sstep(0.65, 0.90, L)) * (1 - sstep(0.90, LAND_IMPACT, L) ** 2);
+      wobble = wHover * 0.015 * landS * Math.sin(t * TAU / 0.9) * Math.sin(t * TAU / 1.7);
+      if (prev < LAND_IMPACT && L >= LAND_IMPACT) { chaseT = 0; blinkT = 0; soleFlash = 1; sway.z -= 0.12 * landS; sway.x += 0.05 * landS; }
+      if (L >= LAND_STAND && landStage < 1) { landStage = 1; groundedOn = true; }
+      const tau = L - LAND_IMPACT;
       if (tau >= 0) {
         squash = (tau < 0.04 ? tau / 0.04 : Math.exp(-(tau - 0.04) * 8) * Math.cos((tau - 0.04) * TAU / 0.2)) * landS;
         settle = Math.exp(-tau * 2.2) * (Math.sin(tau * TAU / 0.9) + 0.6 * Math.sin(tau * TAU / 1.4)) * landS;
+        /* heels first then toes: toes up at contact rolling flat over 150 ms */
+        toeRoll = 0.28 * Math.max(0, 1 - tau / 0.15) * landS;
+        /* arms swing back and settle */
+        armSwing = 0.35 * Math.exp(-tau * 4) * Math.sin(Math.min(tau, 0.6) * TAU / 0.6) * landS;
+        /* one head bob */
+        landHeadBob = 0.12 * Math.sin(Math.min(tau, 0.25) * Math.PI / 0.25) * landS;
       }
-      if (landT > 3.5) landT = Infinity;
+      if (L >= LAND_STAND) {
+        const u = L - LAND_STAND;
+        weightShift = 0.035 * Math.exp(-u * 1.6) * Math.sin(u * TAU / 1.0) * landS;
+      }
+      if (L > 3.5) { landT = Infinity; landFrom = null; }
     } else landLift = 0;
-    const wobble = landT !== Infinity && landT < LAND_TOUCH ? 0.02 * landS * Math.sin(t * TAU / 0.9) * Math.sin(t * TAU / 1.7) : 0;
     rig.rotation.set(rot.x + wobble * 0.6, rot.y, rot.z + 0.022 * settle + wobble);
     rig.scale.set(1 + 0.03 * squash, 1 - 0.06 * squash, 1 + 0.03 * squash);
     /* breathing: the zero-g bob fades out when grounded, a weight shift takes over */
     rig.position.y = zeroG * (0.010 * Math.sin(t * TAU / 5.3) + 0.006 * Math.sin(t * TAU / 8.9 + 1.0)) + 0.012 * settle + landLift;
-    J.pelvis.rotation.z = groundedAmt * 1.5 * D2R * Math.sin(t * TAU / 5.3);
+    J.pelvis.rotation.z = groundedAmt * 1.5 * D2R * Math.sin(t * TAU / 5.3) + weightShift;
 
     /* look: the spring, stiffer for 300 ms after a poke */
     const looking = ms - look.last < 1500;
-    const wantK = ms < stiffUntil ? 40 : 14;
+    const wantK = ms < stiffUntil ? 40 : (headTrack ? 160 : 14);   /* tracking: settles in about 0.25 s */
     if (wantK !== lookK) { lookK = wantK; lookC = 2 * Math.sqrt(lookK); }
     const ty = looking ? look.tx : 0, tp = looking ? look.ty : 0;
     look.vy += (-lookK * (look.yaw - ty) - lookC * look.vy) * dt; look.yaw += look.vy * dt;
     look.vp += (-lookK * (look.pitch - tp) - lookC * look.vp) * dt; look.pitch += look.vp * dt;
     /* parallax shift of the whole rig toward the pointer side, plus the poke recoil */
-    const sx = looking ? 0.12 * look.nx : 0;
+    const sx = looking && !headTrack ? 0.12 * look.nx : 0;   /* no body shift while head tracking */
     shift.v += (-9 * (shift.x - sx) - 6 * shift.v) * dt; shift.x += shift.v * dt;
     shift.rv += (-14 * shift.recoil - 2 * Math.sqrt(14) * shift.rv) * dt; shift.recoil += shift.rv * dt;
     rig.position.x = shift.x + shift.recoil + 0.004 * Math.sin(t * TAU / 9.7 + 0.4);
@@ -1157,9 +1205,10 @@ export function makeCRT(THREE, opts = {}) {
         else if (n.startsWith('elbow') || n.startsWith('knee')) { tg[0] += -0.1 * dA * fw; }
         else if (n === 'spine') { tg[0] += -0.06 * dA * fw; tg[2] += 0.05 * dB * fw; }
       }
-      /* the brace before a touchdown has to happen in 180 ms, so it runs a much stiffer spring */
-      const bracing = landT < LAND_STAND;
-      const K = n === 'head' ? (bracing ? 60 : HEAD_K) : (bracing ? 150 : JOINT_K), C = 2 * Math.sqrt(K);
+      if (armSwing !== 0 && n.startsWith('shoulder')) tg[0] += armSwing;
+      /* during a landing the joints run stiffer and under-damped so the beats overshoot a little */
+      const landing = landT !== Infinity && landT < 1.9;
+      const K = n === 'head' ? (landing ? 50 : HEAD_K) : (landing ? 90 : JOINT_K), C = 2 * landZeta * Math.sqrt(K);
       j.vx += (-K * (j.x - tg[0]) - C * j.vx) * dt; j.x += j.vx * dt;
       j.vy += (-K * (j.y - tg[1]) - C * j.vy) * dt; j.y += j.vy * dt;
       j.vz += (-K * (j.z - tg[2]) - C * j.vz) * dt; j.z += j.vz * dt;
@@ -1167,18 +1216,21 @@ export function makeCRT(THREE, opts = {}) {
       if (g3) g3.rotation.set(j.x, j.y, j.z);
     }
     /* toes point in the dive, fingers spread in the brake */
-    const toe = -0.55 * poseW.fall;
+    const toe = -0.55 * poseW.fall + toeRoll;
     for (const m of shoes) m.rotation.x = toe;
     for (const m of handMeshes) m.rotation.z = m.userData.sgn * 0.28 * poseW.brake;
 
     /* body takes a quarter of the yaw, the head three quarters plus its own nod and drift */
-    J.spine.rotation.y += (1 - HEAD_SHARE) * look.yaw;
-    J.spine.rotation.x += groundedAmt * 0.012 * Math.sin(t * TAU / 4.1);
-    const nodX = 0.025 * Math.sin(t * TAU / 6.7 + 0.9);
+    /* head tracking at the END: the set takes the whole yaw and the torso counter-rotates 15 percent */
+    J.spine.rotation.y += headTrack ? -0.15 * look.yaw : (1 - HEAD_SHARE) * look.yaw;
+    /* alive at rest: a 4 s breath on the spine, a 1 deg head sway on 6 s, the nod on 6.7 s */
+    J.spine.rotation.x += 0.012 * Math.sin(t * TAU / 4.0);
+    const nodX = 0.02 * Math.sin(t * TAU / 6.7 + 0.9) + landHeadBob;
+    const headShare = headTrack ? 1.0 : HEAD_SHARE;
     head.rotation.set(
       nodX + look.pitch + JS.head.x,
-      HEAD_SHARE * look.yaw + JS.head.y,
-      0.012 * Math.sin(t * TAU / 10.3) + JS.head.z,
+      headShare * look.yaw + JS.head.y,
+      1.0 * D2R * Math.sin(t * TAU / 6.0) + JS.head.z,
     );
 
     /* bulk: eased over 600 ms, applied to the parts and the shoulder spread */
@@ -1273,9 +1325,10 @@ export function makeCRT(THREE, opts = {}) {
     const mainsGlow = plumes.length ? thrust.main : 0;
     glowColor.lerp(BLUE, 0.7 * mainsGlow);
     glowU.uColor.value.copy(glowColor);
-    glowU.uAlpha.value = (0.08 * energy + 0.16 * mainsGlow) * hum * (1 - 0.95 * offAmt);
+    /* the rim bleed only while the mains are really firing */
+    glowU.uAlpha.value = 0.22 * Math.max(0, (mainsGlow - 0.7) / 0.3) * hum * (1 - 0.95 * offAmt);
     light.color.copy(glowColor);
-    light.intensity = (0.7 + 0.9 * energy) * hum * (1 - 0.95 * offAmt) + (pokeT < 0.04 ? 2 : 0);
+    light.intensity = (0.15 + 0.25 * energy) * hum * (1 - 0.95 * offAmt) + (pokeT < 0.04 ? 1.5 : 0);
     if (landT !== Infinity && landT >= 0.18 && landT < 0.30) {
       /* one stutter of the set light on touchdown */
       const tl = landT - 0.18;
@@ -1291,8 +1344,8 @@ export function makeCRT(THREE, opts = {}) {
       for (const k in thrust) thrust[k] += (Math.max(thrustT[k], k === 'main' ? landMain : 0) - thrust[k]) * k1;
       packLight.intensity = ((darkKnit ? 2.2 : 0.6) * thrust.main + 0.10) * lightScale * lightScale;
       packLight.distance = 2.5 * lightScale;
-      for (const m of soleLines) m.material = soleFlash > 0.02 ? (m.userData.hot || (m.userData.hot = new THREE.MeshStandardMaterial({ color: 0x0a2233, emissive: BLUE.clone(), emissiveIntensity: 1.1 + 4 * soleFlash }))) : blueMat;
-      if (soleFlash > 0.02) for (const m of soleLines) m.material.emissiveIntensity = 1.1 + 4 * soleFlash;
+      for (const m of soleLines) m.material = soleFlash > 0.02 ? (m.userData.hot || (m.userData.hot = new THREE.MeshStandardMaterial({ color: 0x1a4a66, emissive: BLUE.clone(), emissiveIntensity: 0.35 }))) : blueLit;
+      if (soleFlash > 0.02) for (const m of soleLines) m.material.emissiveIntensity = 0.35 + 3 * soleFlash;
       const f1 = REDUCED ? 0 : Math.sin(t * TAU * 17.0), f2 = REDUCED ? 0 : Math.sin(t * TAU * 23.0);
       for (const pl of plumes) {
         const a = thrust[pl.channel];
@@ -1341,7 +1394,7 @@ export function makeCRT(THREE, opts = {}) {
   return {
     group, update, setFace, lookAt, hover, poke, glass: screen,
     setPose, setTumble, setScreen, setFacing, setScale,
-    setThrust, setSuitTint, setPointer, setIntent, setRim, land, landPhase, setGrounded, setBulk,
+    setThrust, setSuitTint, setPointer, setIntent, setRim, land, landPhase, setGrounded, setBulk, setHeadTrack,
     joints: J, full,
   };
 }

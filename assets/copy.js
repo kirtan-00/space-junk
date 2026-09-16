@@ -6,25 +6,19 @@
 /* World-type, depth-ordered. `at` is a fraction of the full descent (0..1).
    The tunnel places each line once at its depth; nothing loops. */
 export const DESCENT = [
-  /* `title:true` lines are the three chapter cards: huge world type in a stretch the layout keeps empty.
-     Everything else is a caption: typed into the CRT subtitle strip at the bottom, one at a time, never in the world. */
+  /* `title:true` lines are the chapter cards: huge world type in a stretch the layout keeps empty.
+     Everything else is a caption: typed into the CRT subtitle strip at the bottom, one at a time, never in the world.
+     Order (owner): EVERYTHING / IS STILL UP HERE / LENS + the media / TERMINAL + all the tech / I NEVER PICKED A LANE / I PICKED A FALL. No text after the fall. */
   {at:0.00, text:"EVERYTHING I HAVE EVER MADE", title:true},
-  {at:0.04, text:"IS STILL UP HERE"},
-  {at:0.08, text:"SOME OF IT STILL WORKS"},
-  {at:0.11, text:"HOLD SPACE TO SLOW DOWN"},
-  {at:0.13, text:"THE GOOD ONES GO BY FAST"},
-  {at:0.17, text:"SOME OF IT WAS SHOT AT 24"},
-  {at:0.27, text:"SOME OF IT NEEDED A TERMINAL", title:true},
-  {at:0.36, text:"I STOPPED KEEPING SCORE"},
-  {at:0.53, text:"TOUCH ONE. IT WILL TALK."},
-  {at:0.58, text:"THE SEALED ONES WON'T OPEN"},
-  {at:0.62, text:"YOU CAN STILL READ THEM"},
-  {at:0.66, text:"THE DARK ONES ARE DEAD"},
-  {at:0.70, text:"THEY TAUGHT ME THE MOST"},
-  {at:0.76, text:"I NEVER PICKED A LANE"},
-  {at:0.80, text:"I PICKED A FALL", title:true},
-  {at:0.90, text:"YOU ARE NEARLY AT THE BOTTOM"},
-  {at:0.95, text:"I AM DOWN HERE"}
+  {at:0.05, text:"IS STILL UP HERE"},
+  {at:0.20, text:"HOLD SPACE TO SLOW DOWN"},
+  {at:0.24, text:"TOUCH ONE. IT WILL TALK."},
+  {at:0.30, text:"SOME OF IT NEEDED A TERMINAL", title:true},
+  {at:0.40, text:"THE GOOD ONES GO BY FAST"},
+  {at:0.58, text:"THE SEALED ONES WON'T OPEN. YOU CAN STILL READ THEM."},
+  {at:0.66, text:"THE DARK ONES ARE DEAD. THEY TAUGHT ME THE MOST."},
+  {at:0.76, text:"I NEVER PICKED A LANE", title:true},
+  {at:0.84, text:"I PICKED A FALL", title:true}
 ];
 
 /* ACT 2. After "I PICKED A FALL" the audience loses control. The robot falls through a
@@ -37,26 +31,26 @@ export const ACT2 = {
   /* Three phases after the hand-off. Input: steering stays live, forward speed is authored. */
   memory:{
     secs:7, speed:0.9,
-    title:"AND THEN THERE WAS ALL OF THIS",
-    tail:"THAT WAS THE POINT",
+    title:null,
+    tail:null,
     manifest:"assets/memories/manifest.json"   /* clips and photos Kirtan supplies; see the README there */
   },
   plunge:{
-    secs:6,
-    speeds:[2.4,4.0,5.5,7.0],        /* ramps through these, eased, over the phase */
-    dealEvery:0.4,                     /* seconds between colour + shape deals (also on every beat) */
-    shapes:["cube","octa","tetra","ico","lattice","stairs","rings","shards"],
-    /* the plunge is a cut list: each stage is a distinct room, in order, about secs/stages each; the tunnel owns the looks.
-       No text in the plunge (owner). glyphs = the words-and-numbers tunnel, last before the collapse so the landing reads as coming out of the code. */
-    stages:["cubes","lattice","stairs","inverse","rings","shards","glyphs","collapse"],
+    secs:5,
+    speeds:[3.2,5.0,7.0,9.0],        /* ramps through these, eased, over the phase (owner: faster) */
+    dealEvery:0.35,                    /* seconds between colour + shape deals (also on every beat) */
+    shapes:["cube","octa","tetra","ico"],
+    /* the plunge is a cut list; the tunnel owns the looks. prism = a cube tunnel whose walls snap to random colours on the beat
+       and whose cross-section morphs square -> triangle -> square. No text anywhere in the plunge (owner). */
+    stages:["prism","prism-tri","inverse","prism","glyphs","collapse"],
     glyphWords:["RENDER","TAKE 2","24 FPS","ROLL","CUT","EXPORT","DEPLOY","COMMIT","ACTION","SHIP IT","REEL","FRAME","LIGHT","PUSH","MERGE","LOG"],
     text:null
   },
   landing:{
     secs:5,
-    text:"I AM DOWN HERE",
+    text:null,
     /* the plane he lands on: rolling green hills under a blue sky, in the spirit of the old XP wallpaper. The code rain drains away as he stands. */
-    plane:"bliss"
+    plane:"grid"
   }
 };
 
@@ -165,8 +159,6 @@ export const PROJECTS = [
    blurb:"Every Monday, 08:30, every client's week lands in one email. Nobody opens a dashboard any more."},
   {slug:"autocut",       name:"AUTOCUT",      kind:"Edit suite",     state:"classified", accent:"#597484", url:null,
    blurb:"Cuts the first pass of an edit on its own. 4K in, proxies out, two places a human has to say yes."},
-  {slug:"letters",       name:"LETTERS",      kind:"HR tool",        state:"classified", accent:"#597484", url:null,
-   blurb:"Generates HR letters that match the originals to the pixel. Boring on purpose."},
   /* DARK: dead, parked, or never shipped. Dim, flickering, no link. */
   {slug:"expense",       name:"EXPENSE",      kind:"Telegram bot",   state:"dark", accent:"#7dffc4", url:null,
    blurb:"Receipts in on Telegram, reimbursement PDFs out. A finance team accepted them. Then it went quiet."},
@@ -174,8 +166,6 @@ export const PROJECTS = [
    blurb:"Escrow for freelancers. Seven versions of the memo. Zero lines of code. Yet."},
   {slug:"equaliser",     name:"EQUALISER",    kind:"Stock bot",      state:"dark", accent:"#7dffc4", url:null,
    blurb:"A paper trader that reads the mood of the market. Parked, dignity intact."},
-  {slug:"stock-bot",     name:"STOCK BOT",    kind:"Prediction bot", state:"dark", accent:"#7dffc4", url:null,
-   blurb:"Ten stocks a day with a confidence score. Parked. The confidence was the problem."},
   {slug:"flyingnode",    name:"FLYINGNODE",   kind:"Fare alerts",    state:"dark", accent:"#7dffc4", url:null,
    blurb:"Watches airfares for typos and tells me before the airline notices. Runs for one person."},
   {slug:"munimji",       name:"MUNIMJI",      kind:"Cashflow bot",   state:"dark", accent:"#7dffc4", url:null,
@@ -186,7 +176,7 @@ export const PROJECTS = [
    blurb:"AI valuations drawn to scale on one very long scroll. Built. Never shipped."},
   {slug:"youload",       name:"YOULOAD",      kind:"Chrome ext",     state:"dark", accent:"#9a6bff", url:null,
    blurb:"One click and the YouTube clip is in the edit bin. Built for the suite, never published."},
-  {slug:"hu-kon-chu",    name:"HU KON CHU",   kind:"Sci-fi short",   state:"dark", accent:"#ffc247", url:null,
+  {slug:"hu-kon-chu",    name:"HU KON CHU",   kind:"Sci-fi short",   state:"dark", lens:true, accent:"#ffc247", url:null,
    blurb:"Five-minute sci-fi in modern Ahmedabad. Mood board done. Script not."},
   {slug:"ledger",        name:"LEDGER",       kind:"This site, v1",  state:"dark", accent:"#597484", url:null,
    blurb:"This site, one version ago. Read too much like a CV. Retired."},
@@ -212,11 +202,11 @@ export const CLIENTS = [
    Each is a 3D prop (assets/props.js) and a pickup like the client marks. playlist: YouTube playlist id, null until he sends it.
    Order in the ring: dvc, reels, truck, then the four client marks. */
 export const PRODUCTION = [
-  {slug:"dvc",   name:"THE DVCs",     kind:"Digital video commercials", prop:"screen", accent:"#ffc247", playlist:null,
+  {slug:"dvc",   name:"THE DVCs",     kind:"Digital video commercials", prop:"screen", slate:"PRODUCED BY TRULY YOURS", accent:"#ffc247", playlist:null,
    blurb:"Thirty seconds a brand has to be loved in. Written, lit, shot, cut and delivered, with the client on set."},
   {slug:"reels", name:"THE REELS",    kind:"Viral short-form",          prop:"phone",  accent:"#ff2d78", playlist:null,
    blurb:"Vertical, nine by sixteen, made to be sent to someone. Funny first, brand second. The ones that travelled, travelled far."},
-  {slug:"truck", name:"THE SHOOTS",   kind:"Ads and films",             prop:"truck",  accent:"#3fe9ff", playlist:null,
+  {slug:"truck", name:"THE SHOOTS",   kind:"Ads and films",             prop:"camera", accent:"#3fe9ff", playlist:null,
    blurb:"A truck of lights, a truck of cameras, and a call time nobody liked. The ads and films that needed all of it."}
 ];
 export const LENS_HUD = {
