@@ -578,7 +578,10 @@ const FALL_Q=(()=>{const a=40*Math.PI/180, H=new THREE.Vector3(0,Math.cos(a),-Ma
  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1,0,0),H,F))})();
 robot.group.quaternion.copy(FALL_Q);
 const UPRIGHT_Q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);   // upright, facing the direction of travel (down the tunnel)
-robot.setPose?.('fall',1);                                   // the screen keeps the module's default (eyes), in the fall and at the END
+robot.setPose?.('fall',1);
+/* the figure lives on layer 1: the bloom pass composes the scene without him, then he is drawn on top, lit but never glowing */
+const FIG_LAYER=1; robot.group.traverse(o=>{ o.layers.set(FIG_LAYER); if(o.isLight)o.layers.enable(0) }); robot.group.layers.set(FIG_LAYER);
+let figLayered=true;                                   // the screen keeps the module's default (eyes), in the fall and at the END
 /* the module scales its own lights inside setScale (full body); the maths here is only for an older build */
 function lightRig(fig){ const L=[]; if(!fig.setScale)fig.group.traverse(o=>{if(o.isPointLight){o.userData.dist=o.distance;o.userData.base=o.intensity;o.userData.out=NaN;L.push(o)}}); return L }
 const robotLights=lightRig(robot);
@@ -1305,7 +1308,8 @@ function frame(now){
   document.documentElement.style.setProperty('--acc',hx);document.documentElement.style.setProperty('--accA','rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+',.35)')}}
  if(!RM){const rp=((baseT/7300+0.08*Math.sin(baseT*0.00037))%1+1)%1; $('roll').style.transform='translateY('+((rp*(vh+120)-120)|0)+'px)'}
 
- composer.render();
+ camera.layers.set(0); composer.render();                                              // the world with its glow
+ if(figLayered){ const bg=scene.background, fg=scene.fog; scene.background=null; renderer.autoClear=false; renderer.clearDepth(); camera.layers.set(FIG_LAYER); renderer.render(scene,camera); camera.layers.set(0); renderer.autoClear=true; scene.background=bg }   // the figure on top, no bloom, no background repaint
 }
 /* debug hash, for screenshots and checks: #cam=<z>  #near=<slug> (parks it 70 ahead, facing)  #insp=<slug>  #pl=<playlist id, overrides the inspected client's>  #play=1  #end=1  #jump=1 (the CONTACT jump from the top)  #hold=1 (brake held) */
 function debugHash(){ const h=new URLSearchParams(location.hash.replace(/^#/,'')); if(![...h.keys()].length)return;
