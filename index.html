@@ -1221,8 +1221,8 @@ function frame(now){
   /* culling only: visible within 1400 ahead or 60 behind; nothing ever moves, so backing up finds it exactly where it was */
   const dz=camera.position.z-o.base.z; g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
   /* pickup: the ROBOT (not the camera) crosses the object's z inside its radius */
-  if(!o.logged&&prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(9,Math.hypot(o.pw||o.w,o.h)/2*1.15);
-   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ logObject(o); if(!insp&&!o.releasing&&act===1)grab(o) } } }   // bashing into it opens it (owner): no click needed
+  if(prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(12,Math.hypot(o.pw||o.w,o.h)/2*1.4);   // every crossing, logged or not: a return visit still opens it
+   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ if(!o.logged)logObject(o); if(!insp&&!o.releasing&&act===1)grab(o) } } }   // bashing into it opens it (owner): no click needed
   if(o.flash>0||o.flashV){ o.flashV+=(0-o.flash)*0.08*dt; o.flashV*=Math.pow(0.80,dt); o.flash+=o.flashV*dt; if(Math.abs(o.flash)<0.002&&Math.abs(o.flashV)<0.002){o.flash=0;o.flashV=0} }
   if(o.state==='dark'){const ph=((t/60)*o.flr+o.flp)%1, env=0.6+0.4*Math.exp(-5*ph)*(0.5+0.5*Math.cos(ph*50));
    /* dead: dimmed and flickering. A logo takes the 25%; a bare wordmark on transparent needs 42% or it vanishes into the tunnel */
