@@ -594,7 +594,7 @@ rimL.visible=false; fillL.visible=false; keyL.visible=false; scene.add(rimL,rimL
    so the white suit reads white from behind with a cool dome highlight. Both fade out during the END grow. */
 scene.add(camera);
 const chaseL=new THREE.DirectionalLight(0xdfe8ff,1.1); chaseL.position.set(0,0,0); chaseL.target.position.set(0,0,-1); camera.add(chaseL,chaseL.target);
-const chaseP=new THREE.PointLight(ACCENT_END,0.6,80,1); chaseP.position.set(0,6,6); camera.add(chaseP);
+const chaseP=new THREE.PointLight(0xfff4e6,0.6,80,1); chaseP.position.set(0,6,6); camera.add(chaseP);   // warm-white chase point, never the accent
 /* pose and tumble go through the module's own springs: set on change, never per frame */
 let robotPose='', robotTumble=-1;
 function pose(p,blend){ if(p===robotPose)return; robotPose=p; robot.setPose?.(p,blend==null?0.35:blend) }
@@ -690,7 +690,7 @@ function sndLabel(){ $('sndt').textContent=!audioOn?'SOUND':audio.muted?'SOUND O
 
 
 /* ---------- input ---------- */
-addEventListener('wheel',e=>{ if(loading||insp||playing||jump||(act!==1&&!ended))return;
+addEventListener('wheel',e=>{ if(loading||insp||playing||jump)return; if(act!==1&&!ended&&e.deltaY>0&&!scrub)return;   // Act 2: only a pull back (or anything while scrubbing) gets through
  let d=e.deltaY, dx=e.deltaX; if(e.deltaMode===1){d*=16;dx*=16} else if(e.deltaMode===2){d*=innerHeight;dx*=innerWidth}   // device-independent: lines and pages become pixels
  d=Math.max(-120,Math.min(120,d)); wheelAcc+=d;
  },{passive:true});   // trackpad micro-deltas add up over the frame; no cap either way. Owner: the trackpad never steers the figure, only speed; steering is keys and touch
@@ -762,7 +762,10 @@ function startAct2(i){ if(act===2)return; act=2; auto=false; document.body.class
  for(const k in keys){keys[k]=0;$('k'+k)?.classList.remove('on')} $('skip').hidden=false; act2T=0; landed=false;
  if(!holdT)enterPhase(['memory','plunge','landing'][Math.max(0,Math.min(2,i||0))]) }
 function a2line(text,ahead){ const m=mkLine(text); m.position.z=-(cam+(ahead==null?300:ahead)); m.userData.z=m.position.z; m.userData.snap=1; scene.add(m); act2Lines.push(m); allLines.push(m) }
+const TL={memStart:null,plungeStart:null,stages:[],landStart:null,touchZ:null};   // the authored fall as a timeline in cam depth, recorded as it is first crossed forward
+let scrub=false, landK=0, landU=0, touchAt=-1e9, holdCamUntil=-1e9; const camHold=new THREE.Vector2(), lookHold=new THREE.Vector2();
 function enterPhase(name){ phase2=name; phaseT=0; const now=performance.now(); cutLog.push({phase:name,t:now,pt:+act2T.toFixed(2)}); lookAt=now;
+ if(name==='memory'&&TL.memStart==null)TL.memStart=cam; if(name==='plunge'&&TL.plungeStart==null)TL.plungeStart=cam; if(name==='landing'&&TL.landStart==null)TL.landStart=cam;
  try{
   if(name==='memory'){ tunnel?.setLook?.('memory',1.4); tunnel?.setBeatMorph?.(false); tunnel?.setMemories?.(memT.map(m=>({texture:m.tex,kind:m.video?'video':'photo'}))); for(const m of memT)if(m.video)m.video.play?.().catch?.(()=>{});
    pose('fall',0.5); a2From=vT; a2To=(A2M.speed||0.9)*A2X; a2Ramp=0; memFlags={title:false,tail:false} }
@@ -806,7 +809,9 @@ function act2Frame(raw){ if(holdT>0){ holdT-=raw/1000; if(holdT<=0){holdT=0;ente
  else if(phase2==='landing'){ const D=A2L.secs||5;
   a2Ramp=Math.min(1,a2Ramp+raw/700); const k=a2Ramp*a2Ramp*(3-2*a2Ramp); vT=a2From*(1-k);                     // speed to 0 over the burn
   ripAmt*=Math.pow(0.85,raw/16.67);
-  if(!landed&&phaseT>=0.7){ landed=true; try{ tunnel?.impact?.(1); audio?.tvPoke?.(0.8); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0} }catch(e){} }   // touch
+  landK=Math.min(1,phaseT/0.7); landU=Math.max(0,Math.min(1,(phaseT-0.25)/0.30));
+  if(!landed&&phaseT>=0.7){ landed=true; if(TL.touchZ==null)TL.touchZ=cam; touchAt=performance.now(); holdCamUntil=touchAt+400; camHold.copy(camGoal); lookHold.copy(lookGoal);   // touch: weight
+   try{ tunnel?.impact?.(1); audio?.tvPoke?.(1.0); audio?.kick?.(); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0; if(flashEl){flashEl.style.transition='none';flashEl.style.background='#000';flashEl.style.opacity='0.15';setTimeout(()=>{flashEl.style.transition='';flashEl.style.opacity='0';setTimeout(()=>{flashEl.style.background='#fff'},300)},60)}} }catch(e){} }
   if(!grounded&&phaseT>=1.0){ grounded=true; try{ crt.setGrounded?.(true) }catch(e){} }
   if(!landLined&&phaseT>=1.3){ landLined=true; if(A2L.text)typeIntoFree(landLine(),A2L.text); TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() }   // standing: the line, then the END rides in
   if(phaseT>=D&&!ended){ TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() } }
@@ -814,10 +819,38 @@ function act2Frame(raw){ if(holdT>0){ holdT-=raw/1000; if(holdT<=0){holdT=0;ente
 /* after the plunge the tumble must level: wrap the accumulated roll to the nearest level and spring it out, whatever act we are in */
 function levelRoll(raw){ act2Roll=((act2Roll+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; const k=Math.pow(0.93,raw/16.67); act2Roll*=k; act2Pitch*=k; if(Math.abs(act2Roll)<1e-4)act2Roll=0 }
 /* a plunge stage: a hard cut into the next room (the tunnel's plungeStage), with the snap rip and white frame */
-function enterStage(i,sLen){ stageI=i; const name=(A2P.stages||[])[i]; cutLog.push({phase:'plunge:'+name,t:performance.now(),pt:+act2T.toFixed(2)}); lookAt=performance.now();
- try{ tunnel?.plungeStage?.(name,0.05) }catch(e){}
+function enterStage(i,sLen,cut){ stageI=i; const name=(A2P.stages||[])[i]; cutLog.push({phase:'plunge:'+name,t:performance.now(),pt:+act2T.toFixed(2)}); lookAt=performance.now();
+ if(TL.stages[i]==null)TL.stages[i]=cam;
+ try{ tunnel?.plungeStage?.(name,cut==null?0.05:cut) }catch(e){}
  if(!RM){ ripAmt=Math.max(ripAmt,0.02); if(flashEl){ flashEl.style.transition='none'; flashEl.style.opacity='0.35'; setTimeout(()=>{flashEl.style.transition='';flashEl.style.opacity='0'},60) } } }
 function landLine(){ let el=document.getElementById('landline'); if(!el){el=document.createElement('div');el.id='landline';el.className='mono ph';document.body.appendChild(el)} el.textContent=''; el.classList.remove('off'); setTimeout(()=>el.classList.add('off'),4200); return el }
+/* ---------- scrubbing Act 2 backward: phase and stage follow the recorded depths; every switch uses a short cut and a 0.4 s pose blend ---------- */
+function startScrub(){ if(scrub)return; scrub=true; holdT=0; $('skip').hidden=true; cutLog.push({phase:'scrub-in',t:performance.now(),pt:+act2T.toFixed(2)}) }
+function scrubStep(raw,dt){
+ vT*=Math.pow(0.99,dt); if(Math.abs(vT)<0.01)vT=0;                                   // the pull-back bleeds fast so letting go resumes the fall within a second
+ let want; if(TL.landStart!=null&&cam>=TL.landStart)want='landing'; else if(TL.plungeStart!=null&&cam>=TL.plungeStart)want='plunge'; else if(TL.memStart!=null&&cam>=TL.memStart)want='memory'; else want='act1';
+ if(want==='act1'){ leaveAct2(); return }
+ if(want!==phase2){ phase2=want; cutLog.push({phase:'scrub:'+want,t:performance.now(),pt:+act2T.toFixed(2)}); lookAt=performance.now();
+  try{ if(want==='memory'){ tunnel?.setLook?.('memory',0.12); pose('fall',0.4); for(const m of memT)if(m.video)m.video.play?.().catch?.(()=>{}) }
+   else if(want==='plunge'){ tunnel?.setLook?.('plunge',0.12); pose('tuck',0.4); stageI=-1; for(const m of memT)if(m.video)m.video.pause?.() }
+   else if(want==='landing'){ tunnel?.setLook?.('landing',0.12); pose('stand',0.4) } }catch(e){} }
+ if(phase2==='plunge'){ let i=-1; for(let k=0;k<TL.stages.length;k++)if(TL.stages[k]!=null&&cam>=TL.stages[k])i=k; if(i>=0&&i!==stageI){ stageI=i; try{tunnel?.plungeStage?.((A2P.stages||[])[i],0.12)}catch(e){} }
+  levelRoll(raw); ripAmt*=Math.pow(0.85,raw/16.67); plungeFov=null; landK=0; landU=0 }
+ else if(phase2==='memory'){ levelRoll(raw); landK=0; landU=0 }
+ else if(phase2==='landing'){ const z0=TL.landStart, z1=TL.touchZ!=null?TL.touchZ:z0+100; const p=Math.max(0,Math.min(1,(cam-z0)/Math.max(1,z1-z0)));
+  landK=p; landU=Math.max(0,Math.min(1,(p-0.35)/0.45));                                 // he lifts off the grid with the mains and rolls back into the dive as the depth unwinds
+  if(grounded&&p<0.9){ grounded=false; try{crt.setGrounded?.(false)}catch(e){} } if(landed&&p<0.98)landed=false;
+  if(p<0.5&&robotPose!=='fall')pose('fall',0.4); else if(p>=0.5&&robotPose!=='stand')pose('stand',0.4); levelRoll(raw) }
+ /* forward again: the authored fall resumes from this depth at this phase's speed */
+ if(v>-0.005&&vT>=0){ scrub=false; $('skip').hidden=false; a2From=Math.max(0,vT); a2Ramp=0;
+  if(phase2==='memory'){ a2To=(A2M.speed||0.9)*A2X; phaseT=Math.max(0,Math.min(A2M.secs||4,(cam-TL.memStart)/Math.max(1,(TL.plungeStart||cam+1)-TL.memStart)*(A2M.secs||4))) }
+  else if(phase2==='plunge'){ const sLen=(A2P.secs||5)/Math.max(1,(A2P.stages||[]).length); phaseT=Math.max(0,stageI)*sLen; a2To=vT; landK=0 }
+  else if(phase2==='landing'){ phaseT=landK*0.7; a2To=0; landed=false; grounded=false; landLined=false; try{ crt.land?.(1); tunnel?.matrixExit?.(1.6) }catch(e){} }
+  cutLog.push({phase:'scrub-out:'+phase2,t:performance.now(),pt:+act2T.toFixed(2)}) } }
+function leaveAct2(){ scrub=false; act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; landS=ROBOT_S; landK=0; landU=0; landed=false; grounded=false; plungeFlashes=0;
+ try{ crt.setGrounded?.(false); tunnel?.setBeatMorph?.(true,5); tunnel?.setLook?.(null,0.12); tunnel?.setBend?.(tunnel.defaultBend!==undefined?tunnel.defaultBend:true) }catch(e){}
+ setTimeout(()=>{ if(act===1){ try{ tunnel?.setLook?.(null,0.12); tunnel?.setMemories?.([]) }catch(e){} } },400);   // a 0.4 s guard: release the memory look once more if the first call was swallowed by a fade
+ pose('fall',0.4); document.body.classList.remove('act2','endon'); $('skip').hidden=true; for(const m of act2Lines)scene.remove(m); allLines.length=lines.length; act2Lines.length=0; cutLog.push({phase:'act1',t:performance.now(),pt:+act2T.toFixed(2)}) }
 function finishAct2(){ if(act!==2)return; holdT=0; if(phase2!=='landing'){ act2Roll=0; act2Pitch=0; enterPhase('landing') } }   // SKIP jumps to the landing
 $('skip').addEventListener('click',()=>finishAct2()); isolate($('skip')); bk($('skip'),(ACT2&&ACT2.skip)||'SKIP');
 /* ---------- THE GAME: fly the robot through a thing to log it ---------- */
@@ -834,7 +867,7 @@ function logObject(o){ if(o.logged)return; o.logged=true; loggedSet.add(o.slug);
  /* the ring pulse: an additive ring, 1 to 4 over 500 ms, fading */
  const m=new THREE.Mesh(ringGeoP,new THREE.MeshBasicMaterial({color:o.neon,transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));
  m.position.copy(o.grp.position); m.quaternion.copy(camera.quaternion); const s0=Math.max(6,(o.pw||o.w)*0.6); m.scale.setScalar(s0); m.userData={t0:performance.now(),s0}; scene.add(m); pulses.push(m);
- if(act===1){ robot.setSuitTint?.(o.neon); setTimeout(()=>robot.setSuitTint?.(null),200) }
+ if(act===1){ try{ robot.poke?.(0.3) }catch(e){} }                                    // a pickup pulses the screen glass for a beat; the suit is never tinted
  tunnel?.kick?.(0.6); audio?.tvPoke?.(0.35);
  /* the toast, near the object in screen space */
  const d=document.createElement('div'); d.className='toast mono ph'; document.body.appendChild(d); toasts.push({el:d,o,t0:performance.now()});
@@ -975,9 +1008,9 @@ function physicsStep(dt,raw){
  /* velocity spring */
  pv=v;
  const th=keys.w-keys.s;                   // W/S throttle: same target the wheel moves, spring does the rest
- if(th&&!insp&&!jump&&(act===1||ended)) vT+=th*KEY_THROTTLE*dt;                          // S past zero runs the fall backwards
+ if(th&&!insp&&!jump&&(act===1||ended||(act===2&&(th<0||scrub)))) vT+=th*KEY_THROTTLE*dt;   // S pulls back through Act 2                          // S past zero runs the fall backwards
  if(hold&&!insp&&!jump&&act===1) vT*=Math.pow(0.880,dt);
- if(wheelPend){ if(loading||insp||playing||jump||(act!==1&&!ended)){wheelPend=0} else { const take=wheelPend*(1-Math.exp(-(raw/1000)/0.09)); vT+=take; wheelPend-=take; if(Math.abs(wheelPend)<1e-4)wheelPend=0 } }   // a trackpad's bursty deltas become one smooth push
+ if(wheelPend){ if(loading||insp||playing||jump||(act!==1&&!ended&&!scrub&&wheelPend>0)){wheelPend=0} else { const take=wheelPend*(1-Math.exp(-(raw/1000)/0.09)); vT+=take; wheelPend-=take; if(Math.abs(wheelPend)<1e-4)wheelPend=0 } }   // a trackpad's bursty deltas become one smooth push
  if(act===1)vT*=Math.pow(0.9988,dt);                                         // a wheel tick holds: half-life about 9.6 s
  /* the opening: the fall starts on its own and holds 0.22 until the first input; the first look change lands at 7 s */
  if(!loading)bootT+=raw; if(auto&&act===1&&!loading){ autoT+=raw; const k=Math.min(1,autoT/2000); vT=Math.max(vT,0.38*k*k*(3-2*k)) }
@@ -988,7 +1021,8 @@ function physicsStep(dt,raw){
  if(tunnel&&act===1&&openLook===2&&!invRun){ const n=(tunnel.runLog?.()||[]).length; if(n!==morphSeen){ morphSeen=n; if(n%4===0&&n>0){ lookFlip^=1; lookAt=performance.now(); try{tunnel.setLook?.(lookFlip?'tessellation':'cage',1.5)}catch(e){} } } }
  if(tunnel&&act===1&&!invRun&&cam>=HANDOFF_Z*0.45){ invRun=1; invAt=bootT; lookAt=performance.now(); try{tunnel.setLook?.('inverse',1.2)}catch(e){} }
  if(invRun===1&&bootT-invAt>=8000){ invRun=2; lookAt=performance.now(); try{tunnel.setLook?.(null,1.2)}catch(e){} }
- if(act===2)act2Frame(raw);                                                       // the authored fall owns vT and the drift
+ if(act===2&&!scrub&&v<-0.02&&TL.memStart!=null)startScrub();                     // the user pulls back: the authored fall becomes a depth timeline
+ if(act===2){ if(scrub)scrubStep(raw,dt); else act2Frame(raw) }                       // forward: authored; reverse: scrubbed by depth
  if((act===2&&phase2==='landing')||act===3||ended)levelRoll(raw);
  if(jump&&act===2){ jump=0; finishAct2() }                                          // the CONTACT jump crossed the hand-off: skip the authored fall, the landing brings the END
  else if(jump){ jump=Math.max(10,jump-dt); const left=(HANDOFF_Z+24)-cam;             // aim past the hand-off so Act 2 starts, then the landing takes over
@@ -1000,7 +1034,7 @@ function physicsStep(dt,raw){
  if(act===1&&!ended&&v>0&&cam>=HANDOFF_Z)startAct2(0);              // the handoff line: Act 2 takes the controls
  if(cam>=TOTAL_DEPTH&&!ended&&act!==2)startEnd();                    // in Act 2 only the landing starts the END; the plunge outruns any depth estimate
  if(ended&&cam<TOTAL_DEPTH-40)unEnd();                                 // backing away from the floor unwinds the END
- if(act===3&&!ended&&endP<=0){ act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; landS=ROBOT_S; plungeFlashes=0; landed=false; crt.setGrounded?.(false); tunnel?.setBeatMorph?.(true,5); document.body.classList.remove('act2','endon'); cam=HANDOFF_Z-80; try{tunnel?.setBend?.(tunnel.defaultBend!==undefined?tunnel.defaultBend:true)}catch(e){} v=Math.min(v,0); vT=Math.min(vT,0); for(const m of act2Lines)scene.remove(m); allLines.length=lines.length; act2Lines.length=0 }   // Act 2 is skipped on the way up
+ if(act===3&&!ended&&endP<=0){ act=2; phase2='landing'; document.body.classList.remove('endon'); document.body.classList.add('act2'); startScrub() }   // the END has unwound: the landing scrubs backward from here, no jump
  if(ended){ vT=Math.min(vT,0); if(v>0)v*=Math.pow(0.75,dt); cam+=(END_STOP-cam)*(1-Math.pow(0.985,dt)); if(cam>END_STOP+40)cam=END_STOP+40 }   // the floor: a settle, not a clamp
  if(ended){driftT.multiplyScalar(Math.pow(0.9,dt))}                  // the robot settles on the axis
  av=Math.abs(v);
@@ -1029,7 +1063,7 @@ function physicsStep(dt,raw){
  const landing=act===2&&phase2==='landing';
  if(ended||endP>0||landing){ const k=endP*endP*(3-2*endP); let fy=null; try{ const f=tunnel?.landingY?.(); if(typeof f==='number'&&isFinite(f))fy=f }catch(e){}
   /* boots on the hill at the CURRENT scale: pelvis = floor + 0.95 * S. During the burn he hovers a little above it and settles by the touch. */
-  const lb=landing?Math.min(1,phaseT/0.7):1, lbs=lb*lb*(3-2*lb), hover=landing?2.5*(1-lbs):0;
+  const lb=landing?landK:1, lbs=lb*lb*(3-2*lb), hover=landing?2.5*(1-lbs):0;
   if(fy!=null)endPelvis=fy+0.95*robotScale+hover;
   const ky=landing&&endP<=0?lbs:1;                                       // the landing blends from the fall line to the floor over the burn; the END holds it
   robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-ky)+endPelvis*ky) } else robotT.set(driftT.x+titleSide,driftT.y+ROBOT_LOW);
@@ -1039,7 +1073,7 @@ function physicsStep(dt,raw){
  if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S, chest=robotP.y+0.55*landS;
   const rig=eye+0.34*2*LEAD_END*0.315;                                                                  // measured: +10 put the set centre at 39%, +20 lands it near 56%                                                                // the camera rides above the set centre so the set sits low in frame, and it looks LEVEL: look height = camera height
   camGoal.set(driftT.x*(1-k),(robotP.y+6)*(1-k)+rig*k); lookGoal.set(robotP.x*(1-k),chest*(1-k)+rig*k) }   // portrait: the set centre about 56% down, level lens (measured: +3.5 units put it at 45%)   // the landing rig eases into the END rig; the look target drops below the eye so the set top lands near 24%
- else if(act===2&&phase2==='landing'){ camGoal.set(robotP.x,robotP.y+8); lookGoal.set(robotP.x,robotP.y+0.15*landS) }   // 40 behind, 8 above, looking at his hips: boots and ground in frame         // 40 behind, 6 above, looking at his chest   // lens at his eye line, level, straight at the screen (owner: no low angle)
+ else if(act===2&&phase2==='landing'){ if(performance.now()<holdCamUntil){ camGoal.copy(camHold); lookGoal.copy(lookHold) } else { camGoal.set(robotP.x,robotP.y+8); lookGoal.set(robotP.x,robotP.y+0.15*landS) } }   // 40 behind, 8 above, looking at his hips: boots and ground in frame         // 40 behind, 6 above, looking at his chest   // lens at his eye line, level, straight at the screen (owner: no low angle)
  else { camGoal.set(robotP.x,robotP.y+3); lookGoal.set(robotP.x+steer.x*12,robotP.y-2+steer.y*8) }   // behind and a little above him, looking a touch below his line
  cd(drift,driftV,camGoal,6,hsec); cd(lookP,lookV,lookGoal,9,hsec);
  /* bank: he rolls into lateral moves (22 degrees at most) and pitches on vertical ones; the camera takes a third of the roll */
@@ -1076,7 +1110,8 @@ function frame(now){
  const eT2=Math.min(1,endP/0.75), eTs2=eT2*eT2*(3-2*eT2);                 // the lens tightens over the grow
  const driftRx=prevDrift.x+(drift.x-prevDrift.x)*alpha, driftRy=prevDrift.y+(drift.y-prevDrift.y)*alpha;
  const robotRx=prevRobot.x+(robotP.x-prevRobot.x)*alpha, robotRy=prevRobot.y+(robotP.y-prevRobot.y)*alpha;
- toWorld(-camR, driftRx+shx-px*3.2*(1-endP), driftRy+shy+py*2.2*(1-endP), camera.position);   // the END camera never moves with the pointer
+ let camDrop=0; { const td=(now-touchAt)/1000; if(td>=0&&td<3){ camDrop=td<0.12?-3*(td/0.12):-3*Math.exp(-(td-0.12)*4)*Math.cos(2*Math.PI*2*(td-0.12)) } }   // touchdown: the camera drops 3 and springs back at 2 Hz
+ toWorld(-camR, driftRx+shx-px*3.2*(1-endP), driftRy+shy+py*2.2*(1-endP)+camDrop, camera.position);   // the END camera never moves with the pointer
  bendFrame(-camR);
  /* the camera looks at the look target (ahead of the figure by the lead, on the curve), then the roll, pitch wobble and pointer tilt sit on top */
  { const lead=LEAD_REST+(LEAD_FAST-LEAD_REST)*sp; toWorld(-camR-lead-14*(1-endP)-40*endP, lookP.x, lookP.y, lookAtV); lookM.lookAt(camera.position,lookAtV,bendUp); bendQ.setFromRotationMatrix(lookM) }
@@ -1106,7 +1141,7 @@ function frame(now){
  /* the robot: leads the camera by LEAD, pulls ahead with speed. endP drives the END both ways:
     0..0.375 tuck and pull away, grow over 0..0.75, turn to face us and stand at 0.375, words at 1. */
  let lead=LEAD_REST+(LEAD_FAST-LEAD_REST)*sp, S=ROBOT_S;                  // he pulls ahead as you go faster: a distant thing we chase
- if(act>=2&&(phase2==='landing'||ended||endP>0)){ const lb=Math.min(1,phaseT/0.7), lbs=lb*lb*(3-2*lb); landS=ROBOT_S+(LAND_S-ROBOT_S)*lbs; lead=LEAD_REST+(40-LEAD_REST)*lbs; S=landS }   // the set piece: he grows as he burns in, the camera 40 behind
+ if(act>=2&&(phase2==='landing'||ended||endP>0)){ const lb=(act===2&&phase2==='landing')?landK:1, lbs=lb*lb*(3-2*lb); landS=ROBOT_S+(LAND_S-ROBOT_S)*lbs; lead=LEAD_REST+(40-LEAD_REST)*lbs; S=landS }   // the set piece: he grows as he burns in, the camera 40 behind
  if(endP>0){ const e=Math.min(1,endP/0.75), eo=1-Math.pow(1-e,3), e2=Math.min(1,endP/0.625), ei=e2*e2*(3-2*e2);
   lead=lead+(LEAD_END-lead)*ei; S=landS+(ROBOT_END_S-landS)*eo }
  if(act===2&&endP<=0){ tumble((phase2==='plunge'?1.5:phase2==='memory'?0.6:0)*(RM?0:1)) }   // Act 2 poses come from the phases
@@ -1115,8 +1150,8 @@ function frame(now){
  /* boosters: main from W or a wheel impulse smoothed over 250 ms (Act 2: while accelerating), sides from the drift target, retro from the brake */
  wheelImp*=Math.exp(-raw/250); const mainT=act===2?(phase2==='plunge'?0.6:Math.max(0,Math.min(1,(vT-v)*2))):Math.max(keys.w,wheelImp,auto?0.25:0);   // plunge mains capped at 0.6: a white figure with a blue tail mainS+=(mainT-mainS)*(1-Math.exp(-raw/250));
  robot.setIntent?.(endP>0.3?0:act===2?(phase2==='plunge'?1:phase2==='memory'?0.3:0.2):Math.max(0,Math.min(1,0.35*mainS+0.65*sp)));   // the eyes narrow as he accelerates; the calm stare at the END
- { const set=(act===2&&phase2==='landing')||ended||endP>0, rimT=+((act===2&&phase2==='plunge')?1.0:1.4+0.8*eTs).toFixed(2), rimC=set?'#dfefff':ACCENT_END; if(rimT!==rimLast||rimC!==rimCLast){rimLast=rimT;rimCLast=rimC;robot.setRim?.(rimT,rimC)} }
- chaseP.intensity=((act===2&&phase2==='landing')||ended||endP>0)?0:0.6*(1-eTs);                    // the accent chase point never touches him on the hill
+ { const rimT=+((act===2&&phase2==='plunge')?1.0:1.4+0.8*eTs).toFixed(2), rimC='#dfefff'; if(rimT!==rimLast||rimC!==rimCLast){rimLast=rimT;rimCLast=rimC;robot.setRim?.(rimT,rimC)} }   // a neutral rim everywhere: no phase accent on him, ever
+ chaseP.intensity=(act===2||ended||endP>0)?0:0.6*(1-eTs);                          // the accent chase point stays off through all of Act 2: a white figure, never a pink one                    // the accent chase point never touches him on the hill
  { const bulk=+(endP>0?Math.min(1,endP/0.6):0).toFixed(2); if(bulk!==bulkLast){bulkLast=bulk;robot.setBulk?.(bulk)} }   // chunky as he jumps ahead into the landing, back on the unwind
  camera.fov=fovS+(FOV_END-fovS)*eTs2; if(Math.abs(camera.fov-fovLast)>0.01){fovLast=camera.fov;camera.updateProjectionMatrix()}
  thrustO.main=mainS; thrustO.left=Math.max(0,-steer.x); thrustO.right=Math.max(0,steer.x); thrustO.up=Math.max(0,steer.y); thrustO.down=Math.max(0,-steer.y); thrustO.retro=((hold||keys.s)&&act===1)||phase2==='landing'?1:0;
@@ -1129,7 +1164,7 @@ function frame(now){
  robotTZ=-cam-lead; toWorld(-camR-lead,robotRx,robotRy,robot.group.position);
  /* the group's orientation: the dive with bank and pitch in the fall; from land(1) it rights itself over 0.25 to 0.55 s (eased slerp) to upright, feet down, facing the travel, and holds */
  const landingNow=act===2&&phase2==='landing';
- if(landingNow||ended||endP>0){ const u=landingNow?Math.max(0,Math.min(1,(phaseT-0.25)/0.30)):1, us=u*u*(3-2*u); robot.group.quaternion.slerpQuaternions(FALL_Q,UPRIGHT_Q,us) }
+ if(landingNow||ended||endP>0){ const u=landingNow?landU:1, us=u*u*(3-2*u); robot.group.quaternion.slerpQuaternions(FALL_Q,UPRIGHT_Q,us) }
  else robot.group.quaternion.copy(FALL_Q).premultiply(tmpQ2.setFromEuler(tmpE.set(pitchS,0,bankS)));   // he leans into the turn and pitches on climbs
  robot.update(raw/1000,shipT/1000); scaleLights(robotLights,robotScale);
  /* END lights ride with him and only exist while the END has weight */
@@ -1140,7 +1175,7 @@ function frame(now){
   fillL.position.set(P.x+35,P.y+30,P.z+60); rimL.intensity=0.9*litK; fillL.intensity=0.5*litK;
   keyL.position.set(camera.position.x-30,camera.position.y+18,camera.position.z-25); keyL.intensity=1.6*litK }
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
- if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
+ if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,scrub,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',landK:+landK.toFixed(2),look:(()=>{try{return tunnel&&tunnel.currentLook?tunnel.currentLook():null}catch(e){return null}})(),phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
   window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }

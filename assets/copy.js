@@ -30,7 +30,7 @@ export const ACT2 = {
   skip:"SKIP",
   /* Three phases after the hand-off. Input: steering stays live, forward speed is authored. */
   memory:{
-    secs:7, speed:0.9,
+    secs:4, speed:0.9,
     title:null,
     tail:null,
     manifest:"assets/memories/manifest.json"   /* clips and photos Kirtan supplies; see the README there */
