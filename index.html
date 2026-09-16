@@ -589,7 +589,8 @@ const UPRIGHT_Q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0)
 robot.setPose?.('fall',1);
 /* the figure lives on layer 1: the bloom pass composes the scene without him, then he is drawn on top, lit but never glowing */
 const FIG_LAYER=1; robot.group.traverse(o=>{ o.layers.set(FIG_LAYER); if(o.isLight)o.layers.enable(0) }); robot.group.layers.set(FIG_LAYER);
-let figLayered=true;                                   // the screen keeps the module's default (eyes), in the fall and at the END
+let figLayered=true;
+const setLayer=(o,L)=>{ o.grp.traverse(m=>{ if(!m.isLight)m.layers.set(L) }) };   // a held object rides the figure's no-bloom pass: the logo is the logo, the prop is the prop                                   // the screen keeps the module's default (eyes), in the fall and at the END
 /* the module scales its own lights inside setScale (full body); the maths here is only for an older build */
 function lightRig(fig){ const L=[]; if(!fig.setScale)fig.group.traverse(o=>{if(o.isPointLight){o.userData.dist=o.distance;o.userData.base=o.intensity;o.userData.out=NaN;L.push(o)}}); return L }
 const robotLights=lightRig(robot);
@@ -968,7 +969,7 @@ addEventListener('mouseup',()=>{hold=false;document.body.classList.remove('brake
 addEventListener('blur',()=>{hold=false;space=false;for(const k in keys){keys[k]=0;$('k'+k)?.classList.remove('on')}$('ksp')?.classList.remove('on');document.body.className=''});
 
 const sfx=o=>o.state==='classified'?'  /  '+HUD.classified:o.state==='dark'?'  /  '+HUD.dark:'';
-function grab(o){insp=o;o.held=true;inspT=0;
+function grab(o){insp=o;o.held=true;inspT=0; setLayer(o,FIG_LAYER); if(o.prop){ o.propHov=false; try{o.prop.setHover?.(false);o.prop.setDim?.(0.35)}catch(e){} }
  $('ik').textContent=o.kind.toUpperCase()+sfx(o)+(o.logged?'  /  '+(GAME.logged||'LOGGED'):'');$('ih').textContent=o.nm;$('ip').textContent=o.blurb;
  const a=$('ia'), note=$('inote'), pl=$('iplay'); a.hidden=!o.url; a.href=o.url||'#';
  pl.hidden=!(o.client&&o.playlist);
@@ -1220,14 +1221,14 @@ function frame(now){
   if(o.held){ inspT=Math.min(1,inspT+dt*0.055);
    tgt.set(PHONE?0:-15,PHONE?6:4,-34); camera.localToWorld(tgt);                                    // held: up and to the left, clear of the figure (drawn on top) and of the panel
    g.position.lerp(tgt,0.12*dt);
-   tmpQ.copy(camera.quaternion).multiply(flipQ);
+   tmpQ.copy(camera.quaternion);                                                                     // held: it faces the lens, no flip; the logo is the logo, the screen is the screen
    g.quaternion.slerp(tmpQ,0.10*dt);
-   { const k=inspT*inspT*(3-2*inspT), esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w))), es=1+(esMax-1)*k; g.scale.set(es,es,es); if(o.prop)o.prop.setDim?.(0) }   // expands toward a 24-unit width at 34 ahead: a logo grows, a big prop never fills the frame; a prop is undimmed while held
-   halo(1); if(o.frame)frameOpacity(o.frame,1.64); if(o.nk!==1){o.nk=1;o.front.material.opacity=o.ready?1:0} continue }
-  if(o.releasing){ o.releasing=Math.max(0,o.releasing-dt*0.03); { const esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w))), es=1+(esMax-1)*o.releasing; g.scale.set(es,es,es) }
+   { const k=inspT*inspT*(3-2*inspT), esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w,o.h))), es=1+(esMax-1)*k; g.scale.set(es,es,es); if(o.prop){ o.prop.setDim?.(0.35); try{o.prop.update?.(raw/1000,t/60)}catch(e){} } }   // expands toward a 24-unit width at 34 ahead: a logo grows, a big prop never fills the frame; a held prop keeps ticking, no hover, emissives at 65%
+   o.back.material.opacity=0; if(o.frame)frameOpacity(o.frame,1.64); if(o.nk!==1){o.nk=1;o.front.material.opacity=o.ready?1:0} continue }
+  if(o.releasing){ o.releasing=Math.max(0,o.releasing-dt*0.03); { const esMax=Math.max(0.45,Math.min(1.9,24/Math.max(1,o.w,o.h))), es=1+(esMax-1)*o.releasing; g.scale.set(es,es,es) }
    if(o.releasing===0){ o.base.copy(o.home);
-    reseed(o);g.position.copy(o.base);o.off.set(0,0,0);o.vel.set(0,0,0);g.scale.set(1,1,1)}
-   else{tgt.set(18,6,-70);camera.localToWorld(tgt);g.position.lerp(tgt,0.05*dt);g.rotation.x+=o.spin.x*dtw*3;g.rotation.y+=o.spin.y*dtw*3}
+    reseed(o);g.position.copy(o.base);o.off.set(0,0,0);o.vel.set(0,0,0);g.scale.set(1,1,1);setLayer(o,0)}
+   else{tgt.set(18,6,-70);camera.localToWorld(tgt);g.position.lerp(tgt,0.05*dt);g.rotation.x+=o.spin.x*dtw*3;g.rotation.y+=o.spin.y*dtw*3; if(o.prop){ try{o.prop.update?.(raw/1000,t/60)}catch(e){} } }
    halo(0.4); continue }
   /* culling only: visible within 1400 ahead or 60 behind; nothing ever moves, so backing up finds it exactly where it was */
   const dz=camera.position.z-o.base.z; g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
@@ -1331,7 +1332,7 @@ function debugHash(){ const h=new URLSearchParams(location.hash.replace(/^#/,'')
  if(n&&!isFinite(z))cam=Math.max(0,-n.base.z-70);
  camera.position.set(0,0,-cam);
  if(n){ n.base.set(0,12,-cam-70); n.grp.position.copy(n.base); n.grp.quaternion.copy(camera.quaternion); n.spin.set(0,0,0) }
- if(o){ grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt);o.grp.quaternion.copy(camera.quaternion).multiply(flipQ); if(h.get('play')==='1')play() }
+ if(o){ grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt);o.grp.quaternion.copy(camera.quaternion); if(h.get('play')==='1')play() }
  if(h.get('end')==='1'){cam=END_STOP;camera.position.set(0,0,-cam);startEnd()}
  if(h.get('hold')==='1'){hold=true;document.body.classList.add('brake')}
  if(h.has('act2')){ cam=HANDOFF_Z+10; camera.position.set(0,0,-cam); startAct2(parseInt(h.get('act2'))||0) }   // 0 memory, 1 plunge, 2 landing
