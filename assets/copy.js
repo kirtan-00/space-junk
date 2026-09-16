@@ -10,7 +10,7 @@ export const DESCENT = [
      Everything else is a caption: typed into the CRT subtitle strip at the bottom, one at a time, never in the world.
      Order (owner): EVERYTHING / IS STILL UP HERE / LENS + the media / TERMINAL + all the tech / I NEVER PICKED A LANE / I PICKED A FALL. No text after the fall. */
   {at:0.00, text:"EVERYTHING I HAVE EVER MADE", title:true},
-  {at:0.05, text:"IS STILL UP HERE"},
+  {at:0.05, text:"IS STILL UP HERE", title:true},
   {at:0.20, text:"HOLD SPACE TO SLOW DOWN"},
   {at:0.24, text:"TOUCH ONE. IT WILL TALK."},
   {at:0.30, text:"SOME OF IT NEEDED A TERMINAL", title:true},

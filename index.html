@@ -633,7 +633,7 @@ let cam=0,v=0,vT=0,pv=0,hold=false,space=false,ts=1,roll=0,t=0;
 let shAmp=0,shPh=0,shipT=0,baseT=0;
 /* W/S throttle, A/D and left/right arrows drift, up/down arrows climb */
 const keys={w:0,a:0,s:0,d:0,arrowleft:0,arrowright:0,arrowup:0,arrowdown:0};
-const KEY_THROTTLE=0.055;                 // per real frame; one wheel tick (0.105) every 3 frames
+const KEY_THROTTLE=0.055, VMAX=2.4;       // VMAX: the Act 1 speed ceiling in c                 // per real frame; one wheel tick (0.105) every 3 frames
 const drift=new THREE.Vector2(), driftT=new THREE.Vector2(), driftV=new THREE.Vector2();
 let mx=innerWidth/2,my=innerHeight/2,cx=mx,cy=my;
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
@@ -690,7 +690,7 @@ function sndLabel(){ $('sndt').textContent=!audioOn?'SOUND':audio.muted?'SOUND O
 
 
 /* ---------- input ---------- */
-addEventListener('wheel',e=>{ if(loading||insp||playing||jump)return; if(act!==1&&!ended&&e.deltaY>0&&!scrub)return;   // Act 2: only a pull back (or anything while scrubbing) gets through
+addEventListener('wheel',e=>{ if(loading||playing||jump)return; if(insp){ if(Math.abs(e.deltaY)>4)release(); return }   // a scroll lets go of an opened object if(act!==1&&!ended&&e.deltaY>0&&!scrub)return;   // Act 2: only a pull back (or anything while scrubbing) gets through
  let d=e.deltaY, dx=e.deltaX; if(e.deltaMode===1){d*=16;dx*=16} else if(e.deltaMode===2){d*=innerHeight;dx*=innerWidth}   // device-independent: lines and pages become pixels
  d=Math.max(-120,Math.min(120,d)); wheelAcc+=d;
  },{passive:true});   // trackpad micro-deltas add up over the frame; no cap either way. Owner: the trackpad never steers the figure, only speed; steering is keys and touch
@@ -699,7 +699,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
  if(playing){ if(k==='escape')release(); if(k==='m')setMute(!audio.muted); return }     // the reel owns the keys
  if(act!==1&&!ended&&k!==' '&&k!=='m'&&k!=='escape'&&!(k in keys))return;                // Act 2: Space, M and the steering keys
  if(k===' '){e.preventDefault();space=true;$('ksp')?.classList.add('on');document.body.classList.add('slow')}
- if(k in keys){e.preventDefault();keys[k]=1;$('k'+k)?.classList.add('on')}
+ if(k in keys){e.preventDefault();keys[k]=1;$('k'+k)?.classList.add('on'); if(insp&&(k==='w'||k==='s'))release()}   // W or S lets go too
  if(k==='m')setMute(!audio.muted);
  if(k==='escape'&&insp)release();
  if(k==='enter'&&insp&&insp.state==='live'&&insp.url){e.preventDefault();window.open(insp.url,'_blank','noopener')}});
@@ -1010,6 +1010,7 @@ function physicsStep(dt,raw){
  const th=keys.w-keys.s;                   // W/S throttle: same target the wheel moves, spring does the rest
  if(th&&!insp&&!jump&&(act===1||ended||(act===2&&(th<0||scrub)))) vT+=th*KEY_THROTTLE*dt;   // S pulls back through Act 2                          // S past zero runs the fall backwards
  if(hold&&!insp&&!jump&&act===1) vT*=Math.pow(0.880,dt);
+ if(act===1&&!ended&&vT>VMAX) vT=VMAX;                                                  // owner (2026-09-16): W no longer accelerates without end; the fall tops out
  if(wheelPend){ if(loading||insp||playing||jump||(act!==1&&!ended&&!scrub&&wheelPend>0)){wheelPend=0} else { const take=wheelPend*(1-Math.exp(-(raw/1000)/0.09)); vT+=take; wheelPend-=take; if(Math.abs(wheelPend)<1e-4)wheelPend=0 } }   // a trackpad's bursty deltas become one smooth push
  if(act===1)vT*=Math.pow(0.9988,dt);                                         // a wheel tick holds: half-life about 9.6 s
  /* the opening: the fall starts on its own and holds 0.22 until the first input; the first look change lands at 7 s */
@@ -1218,7 +1219,7 @@ function frame(now){
   const dz=camera.position.z-o.base.z; g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
   /* pickup: the ROBOT (not the camera) crosses the object's z inside its radius */
   if(!o.logged&&prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(9,Math.hypot(o.pw||o.w,o.h)/2*1.15);
-   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r)logObject(o) } }
+   if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ logObject(o); if(!insp&&!o.releasing&&act===1)grab(o) } } }   // bashing into it opens it (owner): no click needed
   if(o.flash>0||o.flashV){ o.flashV+=(0-o.flash)*0.08*dt; o.flashV*=Math.pow(0.80,dt); o.flash+=o.flashV*dt; if(Math.abs(o.flash)<0.002&&Math.abs(o.flashV)<0.002){o.flash=0;o.flashV=0} }
   if(o.state==='dark'){const ph=((t/60)*o.flr+o.flp)%1, env=0.6+0.4*Math.exp(-5*ph)*(0.5+0.5*Math.cos(ph*50));
    /* dead: dimmed and flickering. A logo takes the 25%; a bare wordmark on transparent needs 42% or it vanishes into the tunnel */
