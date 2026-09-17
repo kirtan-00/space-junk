@@ -4,8 +4,8 @@
 <title>SPACE JUNK // K. PUROHIT</title>
 <meta name="description" content="Kirtan Purohit: creative producer, filmmaker, developer. A zero-g fall through everything he has made, chasing a small CRT-headed robot.">
 <meta name="theme-color" content="#03040a">
-<meta property="og:type" content="website"><meta property="og:title" content="Kirtan Purohit"><meta property="og:description" content="Creative producer. Filmmaker. Developer. A zero-g fall through everything he has made."><meta property="og:image" content="assets/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Kirtan Purohit"><meta name="twitter:image" content="assets/og.jpg">
+<meta property="og:url" content="https://kirtan-00.github.io/space-junk/"><meta property="og:type" content="website"><meta property="og:title" content="Kirtan Purohit"><meta property="og:description" content="Creative producer. Filmmaker. Developer. A zero-g fall through everything he has made."><meta property="og:image" content="https://kirtan-00.github.io/space-junk/assets/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Kirtan Purohit"><meta name="twitter:image" content="https://kirtan-00.github.io/space-junk/assets/og.jpg">
 <script>
 /* boot: runs before any module. Error tags, the storage shim, the WebGL probe, the static page and the loader watchdog live here
    so that a page whose module never starts still ends somewhere readable. */
@@ -20,11 +20,21 @@
  SJ.hasWebGL=function(){ try{ var c=document.createElement('canvas'); return !!(window.WebGLRenderingContext&&(c.getContext('webgl2')||c.getContext('webgl')||c.getContext('experimental-webgl'))) }catch(e){ return false } };
  SJ.showStatic=function(reason){ if(SJ.staticShown)return; SJ.staticShown=true; SJ.reason=reason||''; console.warn(TAG+' static page:',SJ.reason);
   try{ document.body.classList.add('static'); document.body.classList.remove('loading'); var w=document.getElementById('swhy'); if(w)w.textContent=SJ.reason }catch(e){} };
- var boot0=Date.now();
- setTimeout(function(){ if(SJ.staticShown||SJ.ready)return;
-  if(!SJ.alive){ SJ.showStatic('the page did not start in 8 s') }
-  else if(typeof SJ.forceReady==='function'){ try{ SJ.forceReady('watchdog') }catch(e){ SJ.showStatic('loader stuck: '+msg(e)) } }
-  else SJ.showStatic('loader stuck') },8000);
+ var boot0=Date.now(), STAGE_BAR={boot:0.02,three:0.05,copy:0.16,crt:0.24,audio:0.29,build:0.33,tick:0.36};
+ SJ.stageAt=boot0; SJ.stageName='boot';
+ /* the module stamps a stage before every await: a slow download keeps the watchdog re-armed, a stall does not */
+ var STAGE_NEXT={boot:'three',three:'copy',copy:'crt',crt:'audio',audio:'build',build:'tick'};
+ /* the bar creeps from this stage's mark toward the next over 12 s, so a slow download reads as loading, not as a hang */
+ SJ.stage=function(name){ SJ.stageName=name; SJ.stageAt=Date.now(); try{ var b=document.getElementById('lbar'); if(b&&!SJ.tick&&STAGE_BAR[name]!=null){ b.style.transition='none'; b.style.width=(STAGE_BAR[name]*100)+'%'; void b.offsetWidth; b.style.transition='width 12s linear'; var nx=STAGE_NEXT[name]; if(nx)b.style.width=((STAGE_BAR[nx]-0.01)*100)+'%' } }catch(e){} };
+ SJ.stage('boot');
+ /* the watchdog: a page that never starts is static at 8 s; a module still importing (a slow CDN, a slow phone) has 45 s; once the
+    loader owns the door, 8 s without progress forces PRESS ANY KEY. Nothing waits forever. */
+ (function watch(){ if(SJ.staticShown||SJ.ready)return;
+  var idle=Date.now()-SJ.stageAt, total=Date.now()-boot0;
+  if(!SJ.alive){ if(total>8000){ SJ.showStatic('the page did not start in 8 s'); return } }
+  else if(typeof SJ.forceReady==='function'){ if(idle>8000){ try{ SJ.forceReady('watchdog') }catch(e){ SJ.showStatic('loader stuck: '+msg(e)) } return } }
+  else if(total>45000){ SJ.showStatic('loader stuck at '+SJ.stageName+' for '+Math.round(idle/1000)+' s'); return }
+  setTimeout(watch,500) })();
  SJ.bootMs=function(){ return Date.now()-boot0 };
  /* the service worker: on https always; on localhost only when asked (sw=1), so a dev server never serves a stale module */
  var wantSW=location.protocol==='https:'||/(^|[?&#])sw=1/.test(location.search+location.hash);
@@ -324,9 +334,10 @@ const THREE_CDN=['https://cdn.jsdelivr.net/npm/three@0.160.0/','https://unpkg.co
 const THREE_MODS=['build/three.module.js','examples/jsm/postprocessing/EffectComposer.js','examples/jsm/postprocessing/RenderPass.js','examples/jsm/postprocessing/UnrealBloomPass.js','examples/jsm/postprocessing/ShaderPass.js','examples/jsm/shaders/RGBShiftShader.js'];
 async function loadThree(){ let err=null; for(const base of THREE_CDN){ try{ const m=await Promise.all(THREE_MODS.map(p=>import(base+p))); if(base!==THREE_CDN[0])console.warn('[junk3d] three.js from the fallback CDN'); return m }catch(e){ err=e; console.warn('[junk3d] three.js from '+base+' failed: '+emsg(e)) } } throw err||new Error('no CDN') }
 if(!SJ.hasWebGL())await halt('no WebGL in this browser');
+SJ.stage('three');
 let _tm; try{ _tm=await loadThree() }catch(e){ await halt('three.js did not load: '+emsg(e)) }
 const THREE=_tm[0], {EffectComposer}=_tm[1], {RenderPass}=_tm[2], {UnrealBloomPass}=_tm[3], {ShaderPass}=_tm[4], {RGBShiftShader}=_tm[5];
-loadP.three=1;
+loadP.three=1; SJ.stage('copy');
 let _copy; try{ _copy=await import('./assets/copy.js') }catch(e){ await halt('copy.js did not load: '+emsg(e)) }
 const {DESCENT, END, HUD, PROJECTS, LENS_TITLE, CLIENTS, LENS_HUD, CHROME, NEON, ACT2, GAME, LOADER, PRODUCTION}=_copy;
 if(!Array.isArray(DESCENT)||!Array.isArray(PROJECTS)||!END||!HUD)await halt('copy.js is missing its content');
@@ -338,11 +349,14 @@ try{ $s('sname').innerHTML=(END.lines||[]).map(t=>t.replace(/&/g,'&amp;').replac
  $s('slist').innerHTML=(PROJECTS||[]).map(j=>'<li>'+(j.url?'<a href="'+j.url+'" target="_blank" rel="noopener">'+j.name+'</a>':j.name)+'<i>'+(j.kind||'')+'</i></li>').join('') }catch(e){}
 function $s(id){ return document.getElementById(id) }
 let makeCRT=null, makeAudio=null;
+SJ.stage('crt');
 try{ ({makeCRT}=await import('./assets/crt.js')) }catch(e){ console.warn('[junk3d] crt.js did not load: '+emsg(e)) }
+SJ.stage('audio');
 try{ ({makeAudio}=await import('./assets/audio.js')) }catch(e){ console.warn('[junk3d] audio.js did not load: '+emsg(e)) }
 /* stand-ins: a capsule where the figure should be, silence where the music should be. Every richer call on them is optional-chained. */
 function capsuleFigure(){ const group=new THREE.Group(); const m=new THREE.Mesh(new THREE.CapsuleGeometry(0.35,1.3,4,12),new THREE.MeshStandardMaterial({color:0xeef6fa,roughness:0.6})); group.add(m); group.add(new THREE.PointLight(0xffffff,0.4,20)); return {group,update(){},standIn:true} }
 function silentAudio(){ return {start(){},setState(){},mute(){},muted:false,loadTrack(){return Promise.reject(new Error('no audio module'))},levels(){return null},standIn:true} }
+SJ.stage('build');
 
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $=id=>document.getElementById(id);
@@ -361,10 +375,11 @@ const OPEN_RUN=600;                     // the tunnel opens out over the last st
 const FIELD=560;                        // how far ahead the ten objects live
 let lineZ=at=>200+at*(BASE_DEPTH-700)+(at>LENS_AT?LENS_LEN:0);
 /* ---------- three ---------- */
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+let _rr=null; try{ _rr=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}) }catch(e){ await halt('the WebGL renderer failed: '+emsg(e)) }
+const renderer=_rr;
 /* the pixel ratio: one variable, read by fit(); the governor steps it down on slow frames and back up on fast ones */
 const DPR_BASE=Math.min(devicePixelRatio||1,2), DPR_STEPS=[DPR_BASE,Math.min(DPR_BASE,1.25),Math.min(DPR_BASE,1.0)];
-let dprStep=0, dprNow=DPR_STEPS[0], govAt=0, govSum=0, govN=0;
+let dprStep=0, dprNow=DPR_STEPS[0], govCool=0, govSum=0, govN=0;
 renderer.setPixelRatio(dprNow);
 /* WebGL context: lost pauses the loop, restored rebuilds the targets and warms the materials again */
 let glLost=false;
@@ -781,15 +796,15 @@ let loading=true, loadReady=false, loadT0=performance.now();
 function loadFrac(){ return LOADW.three*loadP.three+LOADW.copy*(0.5*loadP.copy+0.5*loadP.fonts)+LOADW.mods*loadP.mods+LOADW.logos*loadP.logos+LOADW.track*loadP.track }
 function forceReady(why){ if(loadReady||!loading)return; for(const k in loadP)loadP[k]=1; console.warn('[junk3d] loader forced ready: '+why) }
 SJ.forceReady=forceReady;
-function loaderTick(){ if(!loading)return; const el=performance.now()-loadT0;
+function loaderTick(){ if(!loading)return; if(!SJ.tick){ SJ.tick=true; SJ.stage('tick'); $('lbar').style.transition='' } const el=performance.now()-loadT0;
  if(el>6000)loadP.track=1;                                    // the music streams in behind: the door opens at 6 s at the latest
  if(el>4000)loadP.fonts=1;                                    // a font that has not landed by 4 s draws later (the wordmarks redraw when it does)
  if(el>7500)forceReady('7.5 s');                              // nothing holds the door past 7.5 s
  const f=loadFrac(), tmin=Math.min(1,(performance.now()-loadT0)/2000); $('lbar').style.width=(Math.min(f,tmin)*100).toFixed(1)+'%';
- if(!loadReady&&f>=0.999&&tmin>=1){ loadReady=true; SJ.ready=true; $('loader').classList.add('ready'); $('lbar').style.width='100%'; const st=$('lstat'); st.textContent=''; typeIntoFree(st.parentNode,COARSE?(LOADER.touchReady||'TAP TO START'):(LOADER.ready||'PRESS ANY KEY')); st.remove() }
+ if(!loadReady&&f>=0.999&&tmin>=1){ loadReady=true; SJ.ready=true; SJ.readyAt=performance.now(); $('loader').classList.add('ready'); $('lbar').style.width='100%'; const st=$('lstat'); st.textContent=''; typeIntoFree(st.parentNode,COARSE?(LOADER.touchReady||'TAP TO START'):(LOADER.ready||'PRESS ANY KEY')); st.remove() }
  if(loading)setTimeout(loaderTick,100) }
 let leftAt=-1e9;                         // when the loader was left; key and pointer events inside its power-off are the exit, not the fall's first input
-function leaveLoader(e){ if(!loadReady||!loading)return; loading=false; leftAt=performance.now(); document.body.classList.remove('loading'); firstGesture(); sndLabel(); bootT=0; autoT=0; loadT0=performance.now();
+function leaveLoader(e){ if(!loadReady||!loading)return; loading=false; govSum=0; govN=0; leftAt=performance.now(); document.body.classList.remove('loading'); firstGesture(); sndLabel(); bootT=0; autoT=0; loadT0=performance.now();
  if(e&&e.type==='keydown'&&e.key&&e.key.toLowerCase()==='w'){keys.w=1;$('kw')?.classList.add('on')}
  const L=$('loader'); if(RM){L.hidden=true;return} L.classList.add('off1'); setTimeout(()=>L.classList.add('off2'),160); setTimeout(()=>{L.hidden=true},280) }
 let morphSeen=0, lookFlip=0, invRun=0, invAt=0, invOn=false, flashN=0, flashAt=-1e9, lookAt=-1e9, beatHi=0, plungeFlashes=0, fovLast=70, calmLast=null;   // lookAt: the last look change of any kind   // universes dealt so far, which corridor shape is up, the once-per-Act-1 inverse run
@@ -1247,7 +1262,8 @@ function physicsStep(dt,raw){
  roll += (RM?-roll*.2 : ((px*0.10+Math.sin(t*0.011)*0.04)*sp - driftV.x*0.02 + act2Roll + bank + bankS/3 - roll)*0.06)*dt;
 
 }
-function frame(now){
+const PT={tunnel:0,robot:0,render:0,frame:0}; window.__PT=PT;
+function frame(now){ const _f0=performance.now(); PT.frame+=_f0-(PT._last||_f0); PT._last=_f0;
  fit();                                    // no-op unless the window changed; a missed resize event can never leave a dark strip
  const rawAll=now-last, raw=Math.min(50,rawAll);last=now; frameTimes[ftI++%1200]=rawAll; lastRaw=raw; lastRawAll=rawAll;
  const dt=raw/16.67;                       // real frames, for the visuals that want it (flicker, tumble, audio state)
@@ -1291,10 +1307,10 @@ function frame(now){
  /* the frame-time governor: the median over 2 s above 20 ms steps the pixel ratio down (base, 1.25, 1.0); under 12 ms steps it back up */
  govSum+=rawAll; govN++;
  if(govSum>=2000&&govN>=8){ const n=Math.min(govN,1200), arr=govTmp.subarray(0,n); for(let i=0;i<n;i++)arr[i]=frameTimes[((ftI-n+i)%1200+1200)%1200]; arr.sort(); const med=arr[n>>1]; govSum=0; govN=0;
-  if(med>20&&dprStep<DPR_STEPS.length-1){ dprStep++; dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) }
-  else if(med<12&&dprStep>(lowApplied?1:0)){ dprStep--; dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) } }
+  if(med>20&&dprStep<DPR_STEPS.length-1){ dprStep++; dprNow=DPR_STEPS[dprStep]; govCool=now+30000; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) }
+  else if(med<12&&dprStep>(lowApplied?1:0)&&now>govCool){ dprStep--; dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) } }
  if(tunnel){ tunOpts.camZ=camera.position.z; tunOpts.v=v; tunOpts.sp=sp; tunOpts.phase=phaseFrac(cam); tunOpts.dt=raw*ts/1000; tunOpts.slow=slow||lowEnd; tunOpts.reduced=RM; tunOpts.open=tunnel.landingY?0:open; tunOpts.shake=sh; tunOpts.levels=L||undefined; tunOpts.glints=lowEnd?0.5:1;
-  try{ tunnel.update(tunOpts) }catch(e){ if(!tunnelErr){tunnelErr=true;console.warn('tunnel.update threw once, walls frozen:',e&&e.message||e)} }
+  const _tt=performance.now(); try{ tunnel.update(tunOpts) }catch(e){ if(!tunnelErr){tunnelErr=true;console.warn('tunnel.update threw once, walls frozen:',e&&e.message||e)} } PT.tunnel+=performance.now()-_tt;
   if(tunnel.group&&!tunnel.landingY){const k=1+3*open*open; tunnel.group.scale.set(k,k,1); tunnel.group.visible=open<0.98} }   // with a landing floor the tunnel stays   // opens out at the bottom; tunnel.js ignores `open` for now
  else for(const r of rings){ if(r.position.z>camera.position.z+RSP) r.position.z-=NR*RSP; r.scale.setScalar(1+3*open*open); }
 
@@ -1328,7 +1344,7 @@ function frame(now){
  else if(landingNow&&landCalled)robot.group.quaternion.copy(UPRIGHT_Q);                                              // yaw only from here (the module cleared pitch and roll on the group)
  else if(landingNow||ended||endP>0){ const u=landingNow?landU:1, us=u*u*(3-2*u); robot.group.quaternion.slerpQuaternions(FALL_Q,UPRIGHT_Q,us) }   // the unwind and the END: the page's own pitch
  else robot.group.quaternion.copy(FALL_Q).premultiply(tmpQ2.setFromEuler(tmpE.set(pitchS,0,bankS)));   // he leans into the turn and pitches on climbs
- robot.update(raw/1000,shipT/1000); scaleLights(robotLights,robotScale);
+ { const _rt=performance.now(); robot.update(raw/1000,shipT/1000); PT.robot+=performance.now()-_rt } scaleLights(robotLights,robotScale);
  /* END lights ride with him and only exist while the END has weight */
  const lit=endP>0||(act===2&&phase2==='landing'); if(rimL.visible!==lit){rimL.visible=lit;fillL.visible=lit;keyL.visible=lit}   // flips once, at zero intensity; the fade is 1 s each way
  const litK=(act===2&&phase2==='landing'&&endP<=0)?Math.min(1,phaseT/0.7):eTs;
@@ -1339,7 +1355,7 @@ function frame(now){
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
  if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,scrub,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',landK:+landK.toFixed(2),look:(()=>{try{return tunnel&&tunnel.currentLook?tunnel.currentLook():null}catch(e){return null}})(),phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,landCalled,lp:(()=>{try{return crt.landPhase?.()}catch(e){return null}})(),lY:(()=>{try{return +(crt.landingY?.()||0).toFixed(3)}catch(e){return null}})(),auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
-  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__tsInsp=x=>{TS_INSP=x}; window.__zoom=x=>{zoomOff=!x}; window.__dpr=()=>dprNow; window.__loseGL=()=>{ const ext=renderer.getContext().getExtension('WEBGL_lose_context'); if(!ext)return false; ext.loseContext(); setTimeout(()=>ext.restoreContext(),800); return true }; window.__loadP=()=>Object.assign({},loadP); window.__sj=SJ; window.__logos=()=>cards.filter(c=>c.logo).map(c=>({slug:c.slug,word:!!c.redraw,ready:c.ready,lazy:!!c.lazy})); window.__viewport=()=>({w:renderer.domElement.width,h:renderer.domElement.height,aspect:+camera.aspect.toFixed(3),dpr:dprNow}); window.__lastRaw=()=>({raw:lastRaw,rawAll:lastRawAll}); window.__logTest=()=>{ const o=cards.find(c=>!c.logged); if(o)logObject(o); return loggedSet.size }; window.__figure=()=>robot.standIn?'capsule':'crt'; window.__tunnel=()=>tunnel?'module':'rings'; window.__audio=()=>audio.standIn?'silent':'module'; window.__zoomS=()=>+zoom.uniforms.strength.value.toFixed(3); window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
+  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__tsInsp=x=>{TS_INSP=x}; window.__zoom=x=>{zoomOff=!x}; window.__dpr=()=>dprNow; window.__loseGL=()=>{ const ext=renderer.getContext().getExtension('WEBGL_lose_context'); if(!ext)return false; ext.loseContext(); setTimeout(()=>ext.restoreContext(),800); return true }; window.__loadP=()=>Object.assign({},loadP); window.__sj=SJ; window.__logos=()=>cards.filter(c=>c.logo).map(c=>({slug:c.slug,word:!!c.redraw,ready:c.ready,lazy:!!c.lazy,client:!!c.client})); window.__viewport=()=>({w:renderer.domElement.width,h:renderer.domElement.height,aspect:+camera.aspect.toFixed(3),dpr:dprNow}); window.__lastRaw=()=>({raw:lastRaw,rawAll:lastRawAll}); window.__logTest=()=>{ const o=cards.find(c=>!c.logged); if(o)logObject(o); return loggedSet.size }; window.__figure=()=>robot.standIn?'capsule':'crt'; window.__tunnel=()=>tunnel?'module':'rings'; window.__audio=()=>audio.standIn?'silent':'module'; window.__zoomS=()=>+zoom.uniforms.strength.value.toFixed(3); window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }
 
  /* particles: stretch with speed, recycle, energy budget */
@@ -1471,8 +1487,12 @@ function frame(now){
   document.documentElement.style.setProperty('--acc',hx);document.documentElement.style.setProperty('--accA','rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+',.35)')}}
  if(!RM){const rp=((baseT/7300+0.08*Math.sin(baseT*0.00037))%1+1)%1; $('roll').style.transform='translateY('+((rp*(vh+120)-120)|0)+'px)'}
 
+ /* behind the loader nothing is seen: three frames warm the pipeline, then the renders wait for the door so the loader's own work is never starved */
+ if(loading&&frameNo>3)return;
+ const _rd=performance.now();
  camera.layers.set(0); composer.render();                                              // the world with its glow
  if(figLayered){ const bg=scene.background, fg=scene.fog; scene.background=null; renderer.autoClear=false; renderer.clearDepth(); camera.layers.set(FIG_LAYER); renderer.render(scene,camera); camera.layers.set(0); renderer.autoClear=true; scene.background=bg }   // the figure on top, no bloom, no background repaint
+ PT.render+=performance.now()-_rd; if(frameNo===1)SJ.firstRenderMs=performance.now()-_rd;
 }
 /* debug hash, for screenshots and checks: #cam=<z>  #near=<slug> (parks it 70 ahead, facing)  #insp=<slug>  #pl=<playlist id, overrides the inspected client's>  #play=1  #end=1  #jump=1 (the CONTACT jump from the top)  #hold=1 (brake held) */
 function debugHash(){ const h=new URLSearchParams(location.hash.replace(/^#/,'')); if(![...h.keys()].length)return;
@@ -1502,13 +1522,13 @@ fontsUp.then(()=>{loadP.fonts=1},()=>{loadP.fonts=1});
 /* a font that lands after the canvases were drawn: every wordmark and line drawn in the fallback face is redrawn once */
 try{ document.fonts.addEventListener('loadingdone',()=>{ if(!fontLanded())return; for(const o of cards)if(o.redraw&&!o.fontOk){ o.fontOk=true; o.redraw() } for(const m of allLines)if(m.userData.redraw)m.userData.redraw() }) }catch(e){}
 /* prewarm: every texture uploaded and every material compiled while the loader is still up, so nothing stalls mid-fall */
-function prewarm(){ try{
+function prewarm(){ const pw0=performance.now(); try{
  const vis=[]; for(const o of cards){ vis.push([o.grp,o.grp.visible]); o.grp.visible=true; const m=o.front.material.map; if(m)renderer.initTexture(m); if(o.back&&o.back.material.map)renderer.initTexture(o.back.material.map) }
  for(const m of allLines){ vis.push([m,m.visible]); m.visible=true; if(m.material.map)renderer.initTexture(m.material.map) }
  for(const mt of memT)if(mt.tex&&!mt.video)renderer.initTexture(mt.tex);
  const lights=[rimL,fillL,keyL]; const lv=lights.map(l=>l.visible); for(const l of lights)l.visible=true;
  if(crt.group)crt.group.visible=true; renderer.compile(scene,camera);
  for(const [o,v] of vis)o.visible=v; lights.forEach((l,i)=>l.visible=lv[i]);
- }catch(e){ console.warn('prewarm',e&&e.message||e) } }
+ }catch(e){ console.warn('prewarm',e&&e.message||e) } SJ.prewarmMs=(SJ.prewarmMs||0)+(performance.now()-pw0) }
 Promise.all([Promise.race([document.fonts.ready.catch(()=>{}),new Promise(r=>setTimeout(r,4000))]),fontsUp,loadProps(),loadList()]).then(([,,,list])=>{buildCards(list); for(const o of cards)if(o.lazy&&(-o.base.z)<2500)o.lazy(); prewarm();if(!logoTotal)loadP.logos=1;dispatchEvent(new Event('resize'));debugHash();last=performance.now();renderer.setAnimationLoop(frame)});
 </script></body></html>
