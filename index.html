@@ -2,9 +2,60 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SPACE JUNK // K. PUROHIT</title>
+<meta name="description" content="Kirtan Purohit: creative producer, filmmaker, developer. A zero-g fall through everything he has made, chasing a small CRT-headed robot.">
+<meta name="theme-color" content="#03040a">
+<meta property="og:type" content="website"><meta property="og:title" content="Kirtan Purohit"><meta property="og:description" content="Creative producer. Filmmaker. Developer. A zero-g fall through everything he has made."><meta property="og:image" content="assets/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Kirtan Purohit"><meta name="twitter:image" content="assets/og.jpg">
+<script>
+/* boot: runs before any module. Error tags, the storage shim, the WebGL probe, the static page and the loader watchdog live here
+   so that a page whose module never starts still ends somewhere readable. */
+(function(){
+ var TAG='[junk3d]', SJ=window.__SJ={alive:false,ready:false,staticShown:false,errors:[],forceReady:null,BUILD:'2026-09-17a'};
+ function msg(e){ try{ return (e&&(e.message||(e.reason&&(e.reason.message||e.reason))||e.error&&e.error.message))||String(e) }catch(x){ return 'error' } }
+ addEventListener('error',function(e){ SJ.errors.push('error: '+msg(e)); console.warn(TAG+' error:',msg(e)) });
+ addEventListener('unhandledrejection',function(e){ SJ.errors.push('rejection: '+msg(e)); console.warn(TAG+' rejection:',msg(e)); if(e.preventDefault)e.preventDefault() });
+ var mem={};
+ SJ.store={ get:function(k){ try{ return localStorage.getItem(k) }catch(e){ return Object.prototype.hasOwnProperty.call(mem,k)?mem[k]:null } },
+            set:function(k,v){ try{ localStorage.setItem(k,v) }catch(e){ mem[k]=String(v) } } };
+ SJ.hasWebGL=function(){ try{ var c=document.createElement('canvas'); return !!(window.WebGLRenderingContext&&(c.getContext('webgl2')||c.getContext('webgl')||c.getContext('experimental-webgl'))) }catch(e){ return false } };
+ SJ.showStatic=function(reason){ if(SJ.staticShown)return; SJ.staticShown=true; SJ.reason=reason||''; console.warn(TAG+' static page:',SJ.reason);
+  try{ document.body.classList.add('static'); document.body.classList.remove('loading'); var w=document.getElementById('swhy'); if(w)w.textContent=SJ.reason }catch(e){} };
+ var boot0=Date.now();
+ setTimeout(function(){ if(SJ.staticShown||SJ.ready)return;
+  if(!SJ.alive){ SJ.showStatic('the page did not start in 8 s') }
+  else if(typeof SJ.forceReady==='function'){ try{ SJ.forceReady('watchdog') }catch(e){ SJ.showStatic('loader stuck: '+msg(e)) } }
+  else SJ.showStatic('loader stuck') },8000);
+ SJ.bootMs=function(){ return Date.now()-boot0 };
+ /* the service worker: on https always; on localhost only when asked (sw=1), so a dev server never serves a stale module */
+ var wantSW=location.protocol==='https:'||/(^|[?&#])sw=1/.test(location.search+location.hash);
+ if('serviceWorker' in navigator&&wantSW){ addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(e){ console.warn(TAG+' sw:',msg(e)) }) }) }
+})();
+</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"},"scopes":{"https://unpkg.com/three@0.160.0/":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}}</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='10' width='52' height='40' rx='8' fill='none' stroke='%23eef6fa' stroke-width='4'/%3E%3Crect x='14' y='18' width='36' height='24' rx='5' fill='none' stroke='%23eef6fa' stroke-width='3'/%3E%3Ccircle cx='25' cy='30' r='3' fill='%23eef6fa'/%3E%3Ccircle cx='39' cy='30' r='3' fill='%23eef6fa'/%3E%3Cpath d='M24 50v6h16v-6' fill='none' stroke='%23eef6fa' stroke-width='4'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" as="style">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/RenderPass.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/ShaderPass.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/shaders/RGBShiftShader.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/Pass.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/MaskPass.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/shaders/CopyShader.js">
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/shaders/LuminosityHighPassShader.js">
+<link rel="modulepreload" href="assets/copy.js">
+<link rel="modulepreload" href="assets/crt.js">
+<link rel="modulepreload" href="assets/audio.js">
+<link rel="modulepreload" href="assets/tunnel.js">
+<link rel="modulepreload" href="assets/props.js">
 <style>
+/* Archivo is self-hosted (OFL): one variable file with both axes, cached by the service worker, so the wordmarks never fall back */
+@font-face{font-family:Archivo;src:url(assets/fonts/archivo.woff2) format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;height:100dvh;overflow:hidden;background:#03040a}
 :root{--acc:#3fe9ff;--accA:rgba(63,233,255,.35);--cs:1}
@@ -204,8 +255,17 @@ body.inv #insp .tk,body.inv #br i{border-color:var(--ink)}
 body.inv #scan{background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.05) 2px 3px)}
 body.inv #end .el,body.inv #end .name{color:var(--ink);text-shadow:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}#roll{display:none}}
+/* the static page: what a browser without WebGL, without the CDN, or without JS gets. Plain, readable, every link live */
+#static{display:none;position:fixed;inset:0;overflow:auto;background:#03040a;color:#eef6fa;padding:8vh 8vw;font-family:Archivo,"Helvetica Neue",Arial,sans-serif;z-index:20}
+body.static{cursor:auto;user-select:text;overflow:auto} body.static #static{display:block} body.static canvas,body.static #hud,body.static #loader,body.static #cur,body.static #scan,body.static #roll,body.static #grain,body.static #flash,body.static #insp,body.static #end,body.static #br{display:none!important}
+#static h1{font-size:clamp(28px,6vw,72px);font-weight:900;line-height:1.02;letter-spacing:-.01em;margin:0 0 18px}
+#static .roles{font-size:clamp(14px,2vw,22px);font-weight:700;letter-spacing:.14em;margin:0 0 10px}
+#static .line{opacity:.7;margin:0 0 40px;max-width:60ch}
+#static h2{font-size:12px;letter-spacing:.14em;font-weight:500;opacity:.6;margin:28px 0 10px;text-transform:uppercase}
+#static a{color:#eef6fa;text-decoration:underline;text-underline-offset:3px} #static ul{list-style:none} #static li{padding:4px 0} #static li i{font-style:normal;opacity:.55;margin-left:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+#static .why{margin-top:48px;font-size:12px;letter-spacing:.08em;opacity:.45;text-transform:uppercase}
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+
 </head><body class="loading">
 <div id="hud">
   <div class="p id"><div class="nm" id="cname"></div></div>
@@ -237,17 +297,52 @@ body.inv #end .el,body.inv #end .name{color:var(--ink);text-shadow:none}
   <div class="lhint mono ph" id="lhint"></div></div>
 <div id="scan"></div><div id="roll"></div><div id="grain"></div><div id="flash"></div>
 <div id="cur"><div class="o"></div><div class="d"></div></div>
+<div id="static" role="main">
+  <h1 id="sname">HI. I AM KIRTAN PUROHIT.<br>AND I CAN MAKE THAT HAPPEN.</h1>
+  <p class="roles" id="sroles">CREATIVE PRODUCER. FILMMAKER. DEVELOPER.</p>
+  <p class="line" id="sline">A soul that yearns for the scream of the creative muse.</p>
+  <h2 id="scta">For work, write to me</h2>
+  <p><a id="semail" href="mailto:purohit.krick@gmail.com">purohit.krick@gmail.com</a></p>
+  <p id="slinks"><a href="https://instagram.com/kirtanheypurohit" target="_blank" rel="noopener">INSTAGRAM</a> &nbsp; <a href="https://youtube.com/@Kirtanpurohit" target="_blank" rel="noopener">YOUTUBE</a></p>
+  <h2>The projects</h2>
+  <ul id="slist">
+    <li>CLAPPER<i>On-set app</i></li><li>CRAVACHE<i>Game</i></li><li>PAGE 22<i>Game</i></li><li>POSTINNATOR<i>SaaS</i></li><li>DEEPDIVE<i>IG autopilot</i></li><li>SPORTIFIED<i>IG autopilot</i></li><li>THE BLOG<i>Daily writing</i></li><li>LITPRO<i>DOP lighting pre-production tool</i></li><li>BILL PLEASE<i>WhatsApp bot</i></li><li>THE INTRO<i>Scroll film</i></li><li>RETAIN+<i>Agency tool</i></li><li>AUTOCUT<i>Edit suite</i></li><li>EXPENSE<i>Telegram bot</i></li><li>ARTEMIS<i>Venture memo</i></li><li>EQUALISER<i>Stock bot</i></li><li>FLYINGNODE<i>Fare alerts</i></li><li>MUNIMJI<i>Cashflow bot</i></li><li>HOME TOUR<i>Phone 360</i></li><li>SCALE OF<i>Scroll piece</i></li><li>YOULOAD<i>Chrome ext</i></li><li>HU KON CHU<i>Sci-fi short</i></li><li>LEDGER<i>This site, v1</i></li>
+  </ul>
+  <p class="why" id="swhy"></p>
+</div>
+<noscript><style>body{cursor:auto;overflow:auto}#static{display:block}#loader,#hud,#cur{display:none}</style></noscript>
 
 <script type="module">
-import * as THREE from 'three';
-import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
-import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
-import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
-import {RGBShiftShader} from 'three/addons/shaders/RGBShiftShader.js';
-import {DESCENT, END, HUD, PROJECTS, LENS_TITLE, CLIENTS, LENS_HUD, CHROME, NEON, ACT2, GAME, LOADER, PRODUCTION} from './assets/copy.js';
-import {makeCRT} from './assets/crt.js';
-import {makeAudio} from './assets/audio.js';
+/* ---------- boot: every import can fail, and the page must still end somewhere readable ----------
+   three.js: jsdelivr, then unpkg (the importmap scopes the unpkg addons' bare 'three' to unpkg), then the static page.
+   copy.js: the static page. crt.js / audio.js: a stand-in that keeps the fall running. */
+const SJ=window.__SJ; SJ.alive=true;
+const LOADW={three:0.15,copy:0.10,mods:0.20,logos:0.25,track:0.30}, loadP={three:0,copy:0,mods:0,logos:0,track:0,fonts:0};
+const halt=reason=>{ SJ.showStatic(reason); return new Promise(()=>{}) };
+const emsg=e=>(e&&(e.message||e))+'';
+const THREE_CDN=['https://cdn.jsdelivr.net/npm/three@0.160.0/','https://unpkg.com/three@0.160.0/'];
+const THREE_MODS=['build/three.module.js','examples/jsm/postprocessing/EffectComposer.js','examples/jsm/postprocessing/RenderPass.js','examples/jsm/postprocessing/UnrealBloomPass.js','examples/jsm/postprocessing/ShaderPass.js','examples/jsm/shaders/RGBShiftShader.js'];
+async function loadThree(){ let err=null; for(const base of THREE_CDN){ try{ const m=await Promise.all(THREE_MODS.map(p=>import(base+p))); if(base!==THREE_CDN[0])console.warn('[junk3d] three.js from the fallback CDN'); return m }catch(e){ err=e; console.warn('[junk3d] three.js from '+base+' failed: '+emsg(e)) } } throw err||new Error('no CDN') }
+if(!SJ.hasWebGL())await halt('no WebGL in this browser');
+let _tm; try{ _tm=await loadThree() }catch(e){ await halt('three.js did not load: '+emsg(e)) }
+const THREE=_tm[0], {EffectComposer}=_tm[1], {RenderPass}=_tm[2], {UnrealBloomPass}=_tm[3], {ShaderPass}=_tm[4], {RGBShiftShader}=_tm[5];
+loadP.three=1;
+let _copy; try{ _copy=await import('./assets/copy.js') }catch(e){ await halt('copy.js did not load: '+emsg(e)) }
+const {DESCENT, END, HUD, PROJECTS, LENS_TITLE, CLIENTS, LENS_HUD, CHROME, NEON, ACT2, GAME, LOADER, PRODUCTION}=_copy;
+if(!Array.isArray(DESCENT)||!Array.isArray(PROJECTS)||!END||!HUD)await halt('copy.js is missing its content');
+loadP.copy=1;
+/* the static page mirrors copy.js when copy.js is here, so its baked words never drift */
+try{ $s('sname').innerHTML=(END.lines||[]).map(t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;')).join('<br>'); $s('sroles').textContent=END.roles||''; $s('sline').textContent=END.line||''; $s('scta').textContent=END.cta||'';
+ const em=$s('semail'); em.textContent=END.email||''; em.href='mailto:'+(END.email||'');
+ $s('slinks').innerHTML=(END.links||[]).map(l=>'<a href="'+l.url+'" target="_blank" rel="noopener">'+l.label+'</a>').join(' &nbsp; ');
+ $s('slist').innerHTML=(PROJECTS||[]).map(j=>'<li>'+(j.url?'<a href="'+j.url+'" target="_blank" rel="noopener">'+j.name+'</a>':j.name)+'<i>'+(j.kind||'')+'</i></li>').join('') }catch(e){}
+function $s(id){ return document.getElementById(id) }
+let makeCRT=null, makeAudio=null;
+try{ ({makeCRT}=await import('./assets/crt.js')) }catch(e){ console.warn('[junk3d] crt.js did not load: '+emsg(e)) }
+try{ ({makeAudio}=await import('./assets/audio.js')) }catch(e){ console.warn('[junk3d] audio.js did not load: '+emsg(e)) }
+/* stand-ins: a capsule where the figure should be, silence where the music should be. Every richer call on them is optional-chained. */
+function capsuleFigure(){ const group=new THREE.Group(); const m=new THREE.Mesh(new THREE.CapsuleGeometry(0.35,1.3,4,12),new THREE.MeshStandardMaterial({color:0xeef6fa,roughness:0.6})); group.add(m); group.add(new THREE.PointLight(0xffffff,0.4,20)); return {group,update(){},standIn:true} }
+function silentAudio(){ return {start(){},setState(){},mute(){},muted:false,loadTrack(){return Promise.reject(new Error('no audio module'))},levels(){return null},standIn:true} }
 
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $=id=>document.getElementById(id);
@@ -267,7 +362,14 @@ const FIELD=560;                        // how far ahead the ten objects live
 let lineZ=at=>200+at*(BASE_DEPTH-700)+(at>LENS_AT?LENS_LEN:0);
 /* ---------- three ---------- */
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+/* the pixel ratio: one variable, read by fit(); the governor steps it down on slow frames and back up on fast ones */
+const DPR_BASE=Math.min(devicePixelRatio||1,2), DPR_STEPS=[DPR_BASE,Math.min(DPR_BASE,1.25),Math.min(DPR_BASE,1.0)];
+let dprStep=0, dprNow=DPR_STEPS[0], govAt=0, govSum=0, govN=0;
+renderer.setPixelRatio(dprNow);
+/* WebGL context: lost pauses the loop, restored rebuilds the targets and warms the materials again */
+let glLost=false;
+renderer.domElement.addEventListener('webglcontextlost',e=>{ e.preventDefault(); glLost=true; console.warn('[junk3d] WebGL context lost: paused'); try{ renderer.setAnimationLoop(null) }catch(x){} },false);
+renderer.domElement.addEventListener('webglcontextrestored',()=>{ glLost=false; console.warn('[junk3d] WebGL context restored: rebuilding'); try{ vw=-1; fit(); prewarm() }catch(x){ console.warn('[junk3d] rebuild: '+emsg(x)) } last=performance.now(); physAcc=0; try{ renderer.setAnimationLoop(frame) }catch(x){} },false);
 renderer.setSize(window.innerWidth,window.innerHeight,false);   // CSS owns the canvas box (100vw x 100vh)
 document.body.prepend(renderer.domElement);
 const scene=new THREE.Scene();
@@ -292,12 +394,13 @@ let tunnel=null, tunnelErr=false; const tunOpts={};   // one options object for 
 const Q=new URLSearchParams(location.search);
 const DBG=/(^|[#&])dbg=1/.test(location.hash);      // exposes window.__state() for the screenshot harness
 const slow=Q.get('slow')==='1';
-import('./assets/tunnel.js').then(m=>{ loadP.tunnel=1; if(typeof m.makeTunnel!=='function')return;
- tunnel=m.makeTunnel(THREE,{far:FAR,rad:RAD,rady:RADY,reduced:RM,slow,renderer,camera,scene});
+let modsDone=1; const modDone=()=>{ modsDone++; loadP.mods=Math.min(1,modsDone/3) }; loadP.mods=1/3;
+import('./assets/tunnel.js').then(m=>{ modDone(); if(typeof m.makeTunnel!=='function')return;
+ try{ tunnel=m.makeTunnel(THREE,{far:FAR,rad:RAD,rady:RADY,reduced:RM,slow,renderer,camera,scene}) }catch(e){ tunnel=null; console.warn('[junk3d] tunnel.js threw at construction, the wire rings stay: '+emsg(e)); return }
  if(tunnel&&tunnel.group)scene.add(tunnel.group);
  try{ if(tunnel.setBend&&act===1)tunnel.setBend(tunnel.defaultBend!==undefined?tunnel.defaultBend:true) }catch(e){}   // Act 1 rides the curve
  for(const r of rings)r.visible=false;
-}).catch(()=>{ /* no tunnel.js yet: rings stay */ });
+}).catch(e=>{ modDone(); console.warn('[junk3d] tunnel.js did not load, the wire rings stay: '+emsg(e)) });
 
 /* ---------- textures: the logos float on their own, no card behind them ----------
    Every object is two planes in a group: `front` carries the logo PNG (or a wordmark when there is no PNG),
@@ -333,7 +436,8 @@ function logoTex(img,rim){
 /* no PNG: authored type, one system for dark and sealed. Archivo 900 on the wdth axis (canvas fontStretch 'expanded' = 125, verified 18% wider
    than the default), set tight at -0.02em, a crisp 1 px dark outline instead of a bloom; two-word names stack flush left at 0.86 line-height;
    a 1 px rule at 35% white, 60% of the word width; under it the kind in Space Mono at 22% of the word size, 0.18em, 55% white ("/  SEALED" on sealed ones). */
-function wordmarkTex(o){
+function fontLanded(){ try{ return document.fonts.check('900 20px Archivo') }catch(e){ return true } }
+function wordmarkTex(o){ o.fontOk=fontLanded();
  const fs=128, sealed=o.state==='classified', c=document.createElement('canvas'), x=c.getContext('2d');
  const word=String(o.nm||'').toUpperCase(), parts=word.split(' ');
  const rows=parts.length>=2?[parts[0],parts.slice(1).join(' ')]:[word];
@@ -395,7 +499,8 @@ function mkCard(j,big){
  const show=(r,mul)=>{front.material.map=r.tex;o.ready=true;o.nk=-1;front.material.opacity=1;front.material.needsUpdate=true;fit(r.aspect,mul); try{renderer.initTexture(r.tex)}catch(e){}};   // upload now, not on first sight
  const word=()=>show(wordmarkTex(o),LOGO_MUL);                                      // a wordmark is never wider than a logo at the same depth
  fit(3);                                                                              // placeholder until the map lands
- if(o.logo)loadLogo(o.logo,img=>show(logoTex(img,o.neon),LOGO_MUL),word); else word();
+ o.redraw=word; word();
+ if(o.logo){ o.lazy=()=>{ o.lazy=null; loadLogo(o.logo,img=>{ o.redraw=null; show(logoTex(img,o.neon),LOGO_MUL) },()=>{}) } }   // the wordmark stands in until the PNG is wanted (within 2500 units) and lands; a 404 keeps the wordmark
  grp.quaternion.copy(camera.quaternion);
  spawnPos(o,false);grp.position.copy(o.base);
  front.userData.o=o;back.userData.o=o;
@@ -431,7 +536,7 @@ const REACH_X=PHONE?12:58, REACH_Y=PHONE?10:36;
 /* PRODUCTION PROPS (assets/props.js, another agent's): makeProp(THREE,{kind,accent}) -> {group, update(dt,t), setDim, setHover, poke, dispose}.
    If the module is missing the ring holds the four client marks only and the hook below is the only thing to revisit. */
 let makeProp=null;
-function loadProps(){ return import('./assets/props.js').then(m=>{ if(typeof m.makeProp==='function')makeProp=m.makeProp }).catch(()=>{}) }
+function loadProps(){ return import('./assets/props.js').then(m=>{ modDone(); if(typeof m.makeProp==='function')makeProp=m.makeProp }).catch(e=>{ modDone(); console.warn('[junk3d] props.js did not load, the production props are skipped: '+emsg(e)) }) }
 function mkProp(pr,i){ if(!makeProp)return null; let P=null; try{ P=makeProp(THREE,{kind:pr.prop,accent:pr.accent,slate:pr.slate||undefined}) }catch(e){ console.warn('prop',pr.slug,e&&e.message||e); return null } if(!P||!P.group)return null;
  const o={nm:pr.name,col:pr.accent||'#3fe9ff',neon:neonOf(pr.accent),live:true,state:'client',kind:pr.kind||'',blurb:pr.blurb||'',url:null,slug:pr.slug,client:true,prop:P,playlist:typeof pr.playlist==='string'&&pr.playlist?pr.playlist:null,
   flp:Math.random(),flr:0.2, box:52*1.4, w:2.2*22, h:1.6*22, ready:true, nk:-1, flash:0, flashV:0, logged:false, hover:0, hoverV:0, held:false, m:2, spin:new THREE.Vector3(0,0.004,0), drag:0.95, kick:0.5,
@@ -534,6 +639,7 @@ function typeTex(text,color){const c=document.createElement('canvas');c.width=20
 const LINE_NEON=neonOf('#3fe9ff');
 function mkLine(text){const T=typeTex(text);
  const m=new THREE.Mesh(new THREE.PlaneGeometry(NARROW?200:420,NARROW?100:52.5),new THREE.MeshBasicMaterial({map:T.tex,transparent:true,depthWrite:false,opacity:0,fog:false}));
+ if(!fontLanded())m.userData.redraw=()=>{ const T2=typeTex(text); m.material.map=T2.tex; m.material.needsUpdate=true; m.userData.redraw=null };
  /* the line's neon frame: 10% wider than the text, quiet, so the words stay the hero */
  m.visible=false; return m}
 /* only the three TITLES live in the world as huge type; every other DESCENT line is a caption on the CRT subtitle strip (DOM) */
@@ -576,7 +682,8 @@ const LAND_S=10; let landS=4.75;                                  // the landing
 const ROBOT_S=4.75, ROBOT_END_S=48, LEAD_END=NARROW?190:92, LEAD_REST=18, LEAD_FAST=34, ROBOT_LOW=2, CAM_PITCH=4*Math.PI/180, FOV_END=35;   // small while you scroll (about 26% at rest, smaller at speed); big and chunky at the END: x34, a 35 degree lens at knee height   // 18 ahead at x4.75 with the L.I.S.A. body: about 26% of the viewport height at rest (measured), a little below the axis; 66 ahead at x30 for the END (about 70% tall)
 const END_PELVIS_Y=-14, END_EYE=0.62;                        // END lens height above the pelvis, in figure scales: the set's centre                                      // pelvis, world y: set top near the top third, knees at the bottom edge (about 70% of the height)
 const ACCENT_END='#'+phase(END_STOP).getHexString();
-const robot=makeCRT(THREE,{accent:ACCENT_END,full:true});
+let _rb=null; try{ if(makeCRT)_rb=makeCRT(THREE,{accent:ACCENT_END,full:true}); if(!_rb||!_rb.group)throw new Error('no group') }catch(e){ _rb=capsuleFigure(); console.warn('[junk3d] crt.js stand-in (capsule): '+emsg(e)) }
+const robot=_rb;
 scene.add(robot.group);
 const ROBOT_SET_C=robot.setPose?1.10:0.96;                   // set centre above the origin, module units (pelvis for the full body)
 const ROBOT_END_Y=robot.setPose?END_PELVIS_Y:END_PELVIS_Y+0.8*ROBOT_END_S;
@@ -616,7 +723,7 @@ const crt=robot;                                             // the END's lookAt
 /* particles: two LineSegments (white, warm) */
 /* phone or weak machine: lower DPR, lighter post, no grain. Also flips on if the first seconds render slow. */
 let lowEnd=innerWidth<768||(navigator.hardwareConcurrency||8)<8, lowApplied=false, slowFrames=0, frameSamples=0;
-function applyLowEnd(){ if(lowApplied)return; lowApplied=true; renderer.setPixelRatio(Math.min(devicePixelRatio,1.25)); bloom.radius=0.5; $('grain').remove(); document.body.classList.add('lowend') }
+function applyLowEnd(){ if(lowApplied)return; lowApplied=true; dprStep=Math.max(dprStep,1); dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); bloom.radius=0.5; $('grain').remove(); document.body.classList.add('lowend') }
 const NP=(RM||lowEnd)?500:1500;
 function mkParticles(n){const pos=new Float32Array(n*6),P=[];
  for(let i=0;i<n;i++){const a=Math.random()*6.2832,r=6+Math.pow(Math.random(),.6)*150;
@@ -632,13 +739,26 @@ scene.add(new THREE.LineSegments(pw.g,pwM),new THREE.LineSegments(pc.g,pcM));
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
 const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),RM?0:0.42,0.5,0.72);composer.addPass(bloom);
+/* the plunge's zoom blur: 8 taps toward the vanishing point with a 2 px chromatic split per tap, after the bloom and before the RGB shift.
+   Off (pass disabled, no cost) outside the plunge. The figure is drawn after the composer in his own pass, so he never smears. */
+const ZoomBlurShader={uniforms:{tDiffuse:{value:null},center:{value:new THREE.Vector2(0.5,0.5)},strength:{value:0},texel:{value:new THREE.Vector2(1/1440,1/900)}},
+ vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+ fragmentShader:`uniform sampler2D tDiffuse; uniform vec2 center; uniform float strength; uniform vec2 texel; varying vec2 vUv;
+ void main(){ vec2 d=(center-vUv)*strength; vec2 co=normalize(d+vec2(1e-5))*texel*2.0; vec3 col=vec3(0.0); float ws=0.0;
+  for(int i=0;i<8;i++){ float f=float(i)/7.0; float w=1.0-0.55*f; vec2 uv=vUv+d*f;
+   vec4 a=texture2D(tDiffuse,uv+co*f), b=texture2D(tDiffuse,uv-co*f); col+=vec3(a.r,(a.g+b.g)*0.5,b.b)*w; ws+=w; }
+  gl_FragColor=vec4(col/ws,1.0); }`};
+const zoom=new ShaderPass(ZoomBlurShader); zoom.enabled=false; composer.addPass(zoom);
+let zoomK=0, zoomOff=false; const vpV=new THREE.Vector3();
 const shift=new ShaderPass(RGBShiftShader);shift.uniforms.amount.value=0;composer.addPass(shift);
 
 let vw=0,vh=0;
 function fit(){const w=window.innerWidth,h=window.innerHeight; if(w===vw&&h===vh)return; vw=w;vh=h;
  camera.aspect=w/h;camera.updateProjectionMatrix();
- renderer.setPixelRatio(Math.min(devicePixelRatio,lowEnd?1.25:1.5)); renderer.setSize(w,h,false); composer.setSize(w,h); bloom.setSize(w,h)}
-addEventListener('resize',fit); fit();
+ renderer.setPixelRatio(dprNow); renderer.setSize(w,h,false); composer.setSize(w,h); bloom.setSize(w,h); zoom.uniforms.texel.value.set(1/(w*renderer.getPixelRatio()),1/(h*renderer.getPixelRatio()))}
+addEventListener('resize',fit); addEventListener('orientationchange',()=>setTimeout(fit,150)); fit();
+/* a hidden tab: rAF stops on its own; on return the clock restarts so the fall does not jump */
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ last=performance.now(); physAcc=0 } });
 
 /* ---------- state ---------- */
 let cam=0,v=0,vT=0,pv=0,hold=false,space=false,ts=1,roll=0,t=0;
@@ -656,11 +776,17 @@ let endP=0, robotTurned=false, endShown=false, endTimers=[];
 let act=1, voidI=-1, phase2='', phaseT=0, grounded=false, landLined=false, act2T=0, act2Roll=0, act2Pitch=0, act2Yaw=0, stageI=-1, plungeFov=null, rollRate=0, a2From=0, a2To=0, a2Ramp=1, dealAt=-1e9, memT=[], landed=false; const act2Lines=[];   // 1 interactive, 2 authored, 3 END after Act 2
 let lightsKill=false, rimCLast='', prevRZ=null, robotTZ=0, wheelImp=0, mainS=0, bareMode=false, rimLast=-1, bulkLast=-1;   // bareMode: harness only, hides everything but the figure to measure him
 let auto=true, autoT=0, bootT=0, openLook=0;      // the opening: the fall starts on its own, the first look change at 7 s
-let loading=true, loadP={fonts:0,tunnel:0,logos:0,track:0}, loadReady=false, loadT0=performance.now();
-function loadFrac(){ return 0.2*loadP.fonts+0.2*loadP.tunnel+0.3*loadP.logos+0.3*loadP.track }
-function loaderTick(){ if(!loading)return; if(performance.now()-loadT0>8000)loadP.track=1;   // a slow or stuck track never holds the door
+let loading=true, loadReady=false, loadT0=performance.now();
+/* weighted: three.js 15, copy and fonts 10, crt/tunnel/props 20, the logos in the first 2500 units 25, the music 30 */
+function loadFrac(){ return LOADW.three*loadP.three+LOADW.copy*(0.5*loadP.copy+0.5*loadP.fonts)+LOADW.mods*loadP.mods+LOADW.logos*loadP.logos+LOADW.track*loadP.track }
+function forceReady(why){ if(loadReady||!loading)return; for(const k in loadP)loadP[k]=1; console.warn('[junk3d] loader forced ready: '+why) }
+SJ.forceReady=forceReady;
+function loaderTick(){ if(!loading)return; const el=performance.now()-loadT0;
+ if(el>6000)loadP.track=1;                                    // the music streams in behind: the door opens at 6 s at the latest
+ if(el>4000)loadP.fonts=1;                                    // a font that has not landed by 4 s draws later (the wordmarks redraw when it does)
+ if(el>7500)forceReady('7.5 s');                              // nothing holds the door past 7.5 s
  const f=loadFrac(), tmin=Math.min(1,(performance.now()-loadT0)/2000); $('lbar').style.width=(Math.min(f,tmin)*100).toFixed(1)+'%';
- if(!loadReady&&f>=0.999&&tmin>=1){ loadReady=true; $('loader').classList.add('ready'); $('lbar').style.width='100%'; const st=$('lstat'); st.textContent=''; typeIntoFree(st.parentNode,COARSE?(LOADER.touchReady||'TAP TO START'):(LOADER.ready||'PRESS ANY KEY')); st.remove() }
+ if(!loadReady&&f>=0.999&&tmin>=1){ loadReady=true; SJ.ready=true; $('loader').classList.add('ready'); $('lbar').style.width='100%'; const st=$('lstat'); st.textContent=''; typeIntoFree(st.parentNode,COARSE?(LOADER.touchReady||'TAP TO START'):(LOADER.ready||'PRESS ANY KEY')); st.remove() }
  if(loading)setTimeout(loaderTick,100) }
 let leftAt=-1e9;                         // when the loader was left; key and pointer events inside its power-off are the exit, not the fall's first input
 function leaveLoader(e){ if(!loadReady||!loading)return; loading=false; leftAt=performance.now(); document.body.classList.remove('loading'); firstGesture(); sndLabel(); bootT=0; autoT=0; loadT0=performance.now();
@@ -690,15 +816,17 @@ for(const ev of ['wheel','keydown'])addEventListener(ev,e=>{if(realInput(e)&&!ke
 for(const ev of ['wheel','keydown','mousedown'])addEventListener(ev,e=>{if(realInput(e))auto=false},{passive:true});   // the player owns the same vT from here, no jump
 
 /* ---------- audio: starts on the first gesture, never autoplays ---------- */
-const audio=makeAudio(); let audioOn=false;
+let _au=null; try{ if(makeAudio)_au=makeAudio(); if(!_au)throw new Error('no module') }catch(e){ _au=silentAudio(); console.warn('[junk3d] audio stand-in (silent): '+emsg(e)) }
+const audio=_au; let audioOn=false;
 const TRACK=['assets/music/six-coffin-nails.opus','assets/music/six-coffin-nails.mp3'];
 let trackReq=false;
 function loadTrackOnce(){ if(trackReq)return; trackReq=true;
- try{ const r=audio.loadTrack?.(TRACK); if(r&&typeof r.then==='function')r.then(()=>{loadP.track=1;console.log('track: loaded');tunnel?.setBeatMorph?.(true,5)},e=>{loadP.track=1;console.warn('track: failed',e&&e.message||e)}); else {loadP.track=1;if(r!==undefined){console.log('track: requested');tunnel?.setBeatMorph?.(true,5)}} }catch(e){loadP.track=1;console.warn('track',e)} }
+ try{ const r=audio.loadTrack?.(TRACK); if(r&&typeof r.then==='function')r.then(()=>{loadP.track=1;console.log('track: loaded');tunnel?.setBeatMorph?.(true,5)},e=>{loadP.track=1;trackDead=true;sndLabel();console.warn('[junk3d] track: failed, silent: '+emsg(e))}); else {loadP.track=1;if(r!==undefined){console.log('track: requested');tunnel?.setBeatMorph?.(true,5)}} }catch(e){loadP.track=1;console.warn('track',e)} }
 function firstGesture(){ if(audioOn)return; audioOn=true; try{audio.start()}catch(e){console.warn('audio',e)} loadTrackOnce() }
 for(const ev of ['wheel','keydown','pointerdown'])addEventListener(ev,()=>{if(!loading){firstGesture();sndLabel()}},{passive:true});
 function setMute(m){ if(audio&&typeof audio.mute==='function')audio.mute(m); sndLabel() }
-function sndLabel(){ $('sndt').textContent=!audioOn?'SOUND':audio.muted?'SOUND OFF':'SOUND ON' }
+let trackDead=false;
+function sndLabel(){ $('sndt').textContent=(audio.standIn||(trackDead&&audioOn))?'NO AUDIO':!audioOn?'SOUND':audio.muted?'SOUND OFF':'SOUND ON' }
 
 
 /* ---------- input ---------- */
@@ -771,13 +899,13 @@ let ripAmt=0, whip=0; const flashEl=document.getElementById('flash'), cutLog=[];
 /* ---------- ACT 2: three phases after the hand-off: MEMORY (his clips ride the walls), PLUNGE (dealt universes, tumbling camera), LANDING (touchdown).
    The tunnel looks 'memory' / 'plunge' / 'landing' and setMemories / deal / landingY / impact are the tunnel owner's; land / setGrounded are the crt owner's.
    Every call is optional; without them it is a straight fall with the same timing. Steering stays live throughout; only the forward speed is authored. */
-function startAct2(i){ if(act===2)return; act=2; auto=false; document.body.classList.add('act2'); holdT=(i||0)===0?1.2:0; try{tunnel?.setBend?.(null)}catch(e){}
+function startAct2(i){ if(act===2)return; loadMemories(); act=2; auto=false; document.body.classList.add('act2'); holdT=(i||0)===0?1.2:0; try{tunnel?.setBend?.(null)}catch(e){}
  release(); hideKeys(); hold=false; document.body.classList.remove('brake');
  for(const k in keys){keys[k]=0;$('k'+k)?.classList.remove('on')} $('skip').hidden=false; act2T=0; landed=false;
  if(!holdT)enterPhase(['memory','plunge','landing'][Math.max(0,Math.min(2,i||0))]) }
 function a2line(text,ahead){ const m=mkLine(text); m.position.z=-(cam+(ahead==null?300:ahead)); m.userData.z=m.position.z; m.userData.snap=1; scene.add(m); act2Lines.push(m); allLines.push(m) }
 const TL={memStart:null,plungeStart:null,stages:[],landStart:null,touchZ:null};   // the authored fall as a timeline in cam depth, recorded as it is first crossed forward
-let scrub=false, landK=0, landU=0, touchAt=-1e9, holdCamUntil=-1e9; const camHold=new THREE.Vector2(), lookHold=new THREE.Vector2();
+let scrub=false, landK=0, landU=0, touchAt=-1e9, holdCamUntil=-1e9, landCalled=false, landCallT=-1; const camHold=new THREE.Vector2(), lookHold=new THREE.Vector2();   // landCalled: the module's body simulation owns height and pitch from crt.land() on
 function enterPhase(name){ phase2=name; phaseT=0; const now=performance.now(); cutLog.push({phase:name,t:now,pt:+act2T.toFixed(2)}); lookAt=now;
  if(name==='memory'&&TL.memStart==null)TL.memStart=cam; if(name==='plunge'&&TL.plungeStart==null)TL.plungeStart=cam; if(name==='landing'&&TL.landStart==null)TL.landStart=cam;
  try{
@@ -786,7 +914,7 @@ function enterPhase(name){ phase2=name; phaseT=0; const now=performance.now(); c
   else if(name==='plunge'){ for(const m of memT)if(m.video)m.video.pause?.(); tunnel?.setLook?.('plunge',0.4); pose('tuck',0.5); a2From=vT; a2To=(A2P.speeds||[3])[0]*A2X; a2Ramp=0; dealAt=now; memFlags.plungeText=false;
    stageI=-1; if((A2P.stages||[]).length)enterStage(0,(A2P.secs||10)/A2P.stages.length) }
   else if(name==='landing'){ for(const m of memT)if(m.video)m.video.pause?.(); tunnel?.setLook?.('landing',0.6); pose('stand',0.6); a2From=vT; a2To=0; a2Ramp=0; landed=false; grounded=false; landLined=false;
-   try{ tunnel?.matrixExit?.(1.6) }catch(e){} try{ crt.land?.(1) }catch(e){} try{ if(A2L.plane)tunnel?.setPlane?.(A2L.plane) }catch(e){}   // the jetpack landing: burn 0 to 700 ms, touch at 700, stand from 1000
+   landCalled=false; landCallT=-1; try{ tunnel?.matrixExit?.(1.6) }catch(e){} try{ if(A2L.plane)tunnel?.setPlane?.(A2L.plane) }catch(e){}   // the jetpack landing: the page brings him down to the module's start height, then crt.land() runs the burn, the hover, the drop and the bounces
    /* the END transition rides the landing: the floor stays visible behind him */ }
  }catch(e){} }
 let memFlags={};
@@ -824,14 +952,19 @@ function act2Frame(raw){ if(holdT>0){ holdT-=raw/1000; if(holdT<=0){holdT=0;ente
   a2Ramp=Math.min(1,a2Ramp+raw/700); const k=a2Ramp*a2Ramp*(3-2*a2Ramp); vT=a2From*(1-k);                     // speed to 0 over the burn
   ripAmt*=Math.pow(0.85,raw/16.67);
   landK=Math.min(1,phaseT/0.7); landU=Math.max(0,Math.min(1,(phaseT-0.25)/0.30));
-  if(!landed&&phaseT>=0.7){ landed=true; if(TL.touchZ==null)TL.touchZ=cam; touchAt=performance.now(); holdCamUntil=touchAt+400; camHold.copy(camGoal); lookHold.copy(lookGoal);   // touch: weight
-   try{ tunnel?.impact?.(1); audio?.tvPoke?.(1.0); audio?.kick?.(); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0; if(flashEl){flashEl.style.transition='none';flashEl.style.background='#000';flashEl.style.opacity='0.15';setTimeout(()=>{flashEl.style.transition='';flashEl.style.opacity='0';setTimeout(()=>{flashEl.style.background='#fff'},300)},60)}} }catch(e){} }
-  if(!grounded&&phaseT>=1.0){ grounded=true; try{ crt.setGrounded?.(true) }catch(e){} }
-  if(!landLined&&phaseT>=1.3){ landLined=true; if(A2L.text)typeIntoFree(landLine(),A2L.text); TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() }   // standing: the line, then the END rides in
+  if(!landCalled&&phaseT>=0.9)callLand(1.2);                                                                     // the fall line never reached the start height: start the burn anyway
+  if(!grounded&&landed&&crt.landPhase?.()==='stand'){ grounded=true }                                                  // setGrounded is the module's own from round 15
+  if(!landLined&&landCalled&&phaseT>=landCallT+2.2){ landLined=true; if(A2L.text)typeIntoFree(landLine(),A2L.text); TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() }   // standing: the line, then the END rides in
   if(phaseT>=D&&!ended){ TOTAL_DEPTH=cam; END_STOP=cam+30; startEnd() } }
  whip*=Math.pow(0.86,raw/16.67); if(phase2!=='plunge')ripAmt*=Math.pow(0.80,raw/16.67) }
 /* after the plunge the tumble must level: wrap the accumulated roll to the nearest level and spring it out, whatever act we are in */
 function levelRoll(raw){ act2Roll=((act2Roll+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; const k=Math.pow(0.93,raw/16.67); act2Roll*=k; act2Pitch*=k; if(Math.abs(act2Roll)<1e-4)act2Roll=0 }
+/* the hand-over to the body simulation: origin on the ground (pelvis at floor + 0.95 S, feet on landingY), the rig carries the height from here */
+function callLand(vy){ if(landCalled)return; landCalled=true; landCallT=phaseT; robotV.y=0; try{ crt.land?.(1,{vy}) }catch(e){}
+ cutLog.push({phase:'land:'+vy.toFixed(2),t:performance.now(),pt:+act2T.toFixed(2)}) }
+function onContact(){ if(landed)return; landed=true; if(TL.touchZ==null)TL.touchZ=cam; touchAt=performance.now(); holdCamUntil=touchAt+400; camHold.copy(camGoal); lookHold.copy(lookGoal);   // touch: weight
+ try{ tunnel?.impact?.(1); audio?.tvPoke?.(1.0); audio?.kick?.(); if(!RM){shAmp=Math.max(shAmp,0.6);shPh=0; if(flashEl){flashEl.style.transition='none';flashEl.style.background='#000';flashEl.style.opacity='0.15';setTimeout(()=>{flashEl.style.transition='';flashEl.style.opacity='0';setTimeout(()=>{flashEl.style.background='#fff'},300)},60)}} }catch(e){} }
+try{ crt.onContact=onContact }catch(e){}
 /* a plunge stage: a hard cut into the next room (the tunnel's plungeStage), with the snap rip and white frame */
 function enterStage(i,sLen,cut){ stageI=i; const name=(A2P.stages||[])[i]; cutLog.push({phase:'plunge:'+name,t:performance.now(),pt:+act2T.toFixed(2)}); lookAt=performance.now();
  if(TL.stages[i]==null)TL.stages[i]=cam;
@@ -854,14 +987,15 @@ function scrubStep(raw,dt){
  else if(phase2==='landing'){ const z0=TL.landStart, z1=TL.touchZ!=null?TL.touchZ:z0+100; const p=Math.max(0,Math.min(1,(cam-z0)/Math.max(1,z1-z0)));
   landK=p; landU=Math.max(0,Math.min(1,(p-0.35)/0.45));                                 // he lifts off the grid with the mains and rolls back into the dive as the depth unwinds
   if(grounded&&p<0.9){ grounded=false; try{crt.setGrounded?.(false)}catch(e){} } if(landed&&p<0.98)landed=false;
+  if(landCalled&&p<0.98){ landCalled=false; landCallT=-1; try{ crt.setPose?.('fall',0.4) }catch(e){} }                         // the unwind: the module's sim lets go, the page pitches him back into the dive
   if(p<0.5&&robotPose!=='fall')pose('fall',0.4); else if(p>=0.5&&robotPose!=='stand')pose('stand',0.4); levelRoll(raw) }
  /* forward again: the authored fall resumes from this depth at this phase's speed */
  if(v>-0.005&&vT>=0){ scrub=false; $('skip').hidden=false; a2From=Math.max(0,vT); a2Ramp=0;
   if(phase2==='memory'){ a2To=(A2M.speed||0.9)*A2X; phaseT=Math.max(0,Math.min(A2M.secs||4,(cam-TL.memStart)/Math.max(1,(TL.plungeStart||cam+1)-TL.memStart)*(A2M.secs||4))) }
   else if(phase2==='plunge'){ const sLen=(A2P.secs||5)/Math.max(1,(A2P.stages||[]).length); phaseT=Math.max(0,stageI)*sLen; a2To=vT; landK=0 }
-  else if(phase2==='landing'){ phaseT=landK*0.7; a2To=0; landed=false; grounded=false; landLined=false; try{ crt.land?.(1); tunnel?.matrixExit?.(1.6) }catch(e){} }
+  else if(phase2==='landing'){ phaseT=landK*0.7; a2To=0; landed=false; grounded=false; landLined=false; landCalled=false; landCallT=-1; try{ tunnel?.matrixExit?.(1.6) }catch(e){} }   // the burn re-arms: land() fires again at the start height
   cutLog.push({phase:'scrub-out:'+phase2,t:performance.now(),pt:+act2T.toFixed(2)}) } }
-function leaveAct2(){ scrub=false; act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; landS=ROBOT_S; landK=0; landU=0; landed=false; grounded=false; plungeFlashes=0;
+function leaveAct2(){ scrub=false; act=1; phase2=''; act2Roll=0; act2Pitch=0; act2Yaw=0; plungeFov=null; stageI=-1; landS=ROBOT_S; landK=0; landU=0; landed=false; grounded=false; landCalled=false; landCallT=-1; plungeFlashes=0;
  try{ crt.setGrounded?.(false); tunnel?.setBeatMorph?.(true,5); tunnel?.setLook?.(null,0.12); tunnel?.setBend?.(tunnel.defaultBend!==undefined?tunnel.defaultBend:true) }catch(e){}
  setTimeout(()=>{ if(act===1){ try{ tunnel?.setLook?.(null,0.12); tunnel?.setMemories?.([]) }catch(e){} } },400);   // a 0.4 s guard: release the memory look once more if the first call was swallowed by a fade
  pose('fall',0.4); document.body.classList.remove('act2','endon'); $('skip').hidden=true; for(const m of act2Lines)scene.remove(m); allLines.length=lines.length; act2Lines.length=0; cutLog.push({phase:'act1',t:performance.now(),pt:+act2T.toFixed(2)}) }
@@ -869,8 +1003,8 @@ function finishAct2(){ if(act!==2)return; holdT=0; if(phase2!=='landing'){ act2R
 $('skip').addEventListener('click',()=>finishAct2()); isolate($('skip')); bk($('skip'),(ACT2&&ACT2.skip)||'SKIP');
 /* ---------- THE GAME: fly the robot through a thing to log it ---------- */
 const LOG_KEY='junk3d.logged.v1'; let loggedSet=new Set();
-try{ loggedSet=new Set(JSON.parse(localStorage.getItem(LOG_KEY)||'[]')) }catch(e){}
-function saveLogged(){ try{localStorage.setItem(LOG_KEY,JSON.stringify([...loggedSet]))}catch(e){} }
+try{ loggedSet=new Set(JSON.parse(SJ.store.get(LOG_KEY)||'[]')) }catch(e){}
+function saveLogged(){ try{SJ.store.set(LOG_KEY,JSON.stringify([...loggedSet]))}catch(e){} }   // SJ.store falls back to memory when localStorage throws (private mode)
 let lastLogAt=-1e9, counterTimer=0;
 function counterText(){ const n=cards.filter(o=>o.logged).length, total=cards.length; return (GAME&&GAME.counter||'LOGGED {n} / {total}').replace('{n}',String(n).padStart(2,'0')).replace('{total}',String(total)) }
 function updateCounter(flip){ const c=$('ctext'); c.textContent=counterText(); if(flip){c.classList.remove('flip');void c.offsetWidth;c.classList.add('flip')}
@@ -994,7 +1128,7 @@ function powerOff(){ const P=$('insp'); for(const tm of panelTimers)clearTimeout
 
 const tmpV=new THREE.Vector3(), tmpQ=new THREE.Quaternion(), tmpQ2=new THREE.Quaternion(), tmpE=new THREE.Euler(), tgt=new THREE.Vector3(), flipQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);
 
-let TS_INSP=0.04; let last=performance.now(), frameNo=0, csLast=-1, accLast='', vGhostOn=false, beatLast=0; const frameTimes=new Float32Array(1200); let ftI=0; const vHist=[{t:0,s:'0.000'}];
+let TS_INSP=0.04; let last=performance.now(), frameNo=0, csLast=-1, accLast='', vGhostOn=false, beatLast=0; const frameTimes=new Float32Array(1200), govTmp=new Float32Array(1200); let ftI=0, lastRaw=0, lastRawAll=0; const vHist=[{t:0,s:'0.000'}];
 /* film grain: a 256 px noise tile, stepped six times a second */
 (()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d'),im=x.createImageData(256,256),d=im.data;
  for(let i=0;i<d.length;i+=4){const n=Math.random()*255|0;d[i]=d[i+1]=d[i+2]=n;d[i+3]=255} x.putImageData(im,0,0);
@@ -1046,6 +1180,7 @@ function physicsStep(dt,raw){
  if(Math.abs(v)<0.0006)v=0;
  cam+=v*2.4*dtw;
  if(cam<0){ cam=0; if(v<-0.05&&!RM){shAmp=Math.max(shAmp,0.4);shPh=0} if(v<0)v=-v*0.35; if(vT<0)vT=0 }   // the top: a soft stop, it springs back
+ if(act===1&&!memReq&&cam>=HANDOFF_Z-800)loadMemories();                 // the memory clips are fetched only when the hand-off is 800 units away
  if(act===1&&!ended&&v>0&&cam>=HANDOFF_Z)startAct2(0);              // the handoff line: Act 2 takes the controls
  if(cam>=TOTAL_DEPTH&&!ended&&act!==2)startEnd();                    // in Act 2 only the landing starts the END; the plunge outruns any depth estimate
  if(ended&&cam<TOTAL_DEPTH-40)unEnd();                                 // backing away from the floor unwinds the END
@@ -1078,12 +1213,17 @@ function physicsStep(dt,raw){
  const landing=act===2&&phase2==='landing';
  if(ended||endP>0||landing){ const k=endP*endP*(3-2*endP); let fy=null; try{ const f=tunnel?.landingY?.(); if(typeof f==='number'&&isFinite(f))fy=f }catch(e){}
   /* boots on the hill at the CURRENT scale: pelvis = floor + 0.95 * S. During the burn he hovers a little above it and settles by the touch. */
-  const lb=landing?landK:1, lbs=lb*lb*(3-2*lb), hover=landing?2.5*(1-lbs):0;
-  if(fy!=null)endPelvis=fy+0.95*robotScale+hover;
+  const lb=landing?landK:1, lbs=lb*lb*(3-2*lb);
+  if(fy!=null)endPelvis=fy+0.95*robotScale;                                                                          // feet on the floor at the current scale; the module's rig adds the hover, the drop and the bounces
   const ky=landing&&endP<=0?lbs:1;                                       // the landing blends from the fall line to the floor over the burn; the END holds it
-  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-ky)+endPelvis*ky) } else robotT.set(driftT.x+titleSide,driftT.y+ROBOT_LOW);
+  robotT.set(driftT.x*(1-k),(driftT.y+ROBOT_LOW)*(1-ky)+endPelvis*ky);
+  if(landing&&!landCalled&&fy!=null&&!scrub&&endP<=0){ const S0=Math.max(0.1,robotScale), h=(robotP.y-endPelvis)/S0, vy=Math.max(0.5,Math.min(2.5,-robotV.y*60/S0));   // height above the ground and the fall's vertical speed, in figure units
+   let y0=0.8; try{ const q=crt.landStartY?.(vy); if(typeof q==='number'&&isFinite(q))y0=q }catch(e){}
+   if(h<=y0){ robotP.y=endPelvis; callLand(vy) } } }
+ else robotT.set(driftT.x+titleSide,driftT.y+ROBOT_LOW);
  robotV.x += (robotT.x-robotP.x)*0.0156*dt; robotV.y += (robotT.y-robotP.y)*0.0156*dt;
  robotV.multiplyScalar(Math.pow(0.86,dt)); robotP.addScaledVector(robotV,dt);
+ if(landing&&landCalled&&endP<=0){ robotP.y=endPelvis; robotV.y=0 }                                                   // from land() on the module carries the height on its rig
  const cd=critSpring;
  if(ended||endP>0){ const k=endP*endP*(3-2*endP), eye=endPelvis+END_EYE*ROBOT_END_S, chest=robotP.y+0.55*landS;
   const rig=eye+0.34*2*LEAD_END*0.315;                                                                  // measured: +10 put the set centre at 39%, +20 lands it near 56%                                                                // the camera rides above the set centre so the set sits low in frame, and it looks LEVEL: look height = camera height
@@ -1109,7 +1249,7 @@ function physicsStep(dt,raw){
 }
 function frame(now){
  fit();                                    // no-op unless the window changed; a missed resize event can never leave a dark strip
- const rawAll=now-last, raw=Math.min(50,rawAll);last=now; frameTimes[ftI++%1200]=rawAll;
+ const rawAll=now-last, raw=Math.min(50,rawAll);last=now; frameTimes[ftI++%1200]=rawAll; lastRaw=raw; lastRawAll=rawAll;
  const dt=raw/16.67;                       // real frames, for the visuals that want it (flicker, tumble, audio state)
  cx+=(mx-cx)*.18; cy+=(my-cy)*.18;
  $('cur').style.transform=`translate(${cx}px,${cy}px)`;
@@ -1148,6 +1288,11 @@ function frame(now){
    try{ tunnel?.setLook?.('inverse',0.25); setTimeout(()=>{ try{ if(invRun!==1)tunnel?.setLook?.(null,0.35) }catch(e){} },1200) }catch(e){} }
   beatLast=L.beat }
  if(frameSamples<120){ frameSamples++; if(raw>=28)slowFrames++; if(frameSamples===120&&slowFrames>60)lowEnd=true } if(lowEnd&&!lowApplied)applyLowEnd();
+ /* the frame-time governor: the median over 2 s above 20 ms steps the pixel ratio down (base, 1.25, 1.0); under 12 ms steps it back up */
+ govSum+=rawAll; govN++;
+ if(govSum>=2000&&govN>=8){ const n=Math.min(govN,1200), arr=govTmp.subarray(0,n); for(let i=0;i<n;i++)arr[i]=frameTimes[((ftI-n+i)%1200+1200)%1200]; arr.sort(); const med=arr[n>>1]; govSum=0; govN=0;
+  if(med>20&&dprStep<DPR_STEPS.length-1){ dprStep++; dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) }
+  else if(med<12&&dprStep>(lowApplied?1:0)){ dprStep--; dprNow=DPR_STEPS[dprStep]; vw=-1; fit(); console.log('[junk3d] governor: median '+med.toFixed(1)+' ms, pixel ratio '+dprNow) } }
  if(tunnel){ tunOpts.camZ=camera.position.z; tunOpts.v=v; tunOpts.sp=sp; tunOpts.phase=phaseFrac(cam); tunOpts.dt=raw*ts/1000; tunOpts.slow=slow||lowEnd; tunOpts.reduced=RM; tunOpts.open=tunnel.landingY?0:open; tunOpts.shake=sh; tunOpts.levels=L||undefined; tunOpts.glints=lowEnd?0.5:1;
   try{ tunnel.update(tunOpts) }catch(e){ if(!tunnelErr){tunnelErr=true;console.warn('tunnel.update threw once, walls frozen:',e&&e.message||e)} }
   if(tunnel.group&&!tunnel.landingY){const k=1+3*open*open; tunnel.group.scale.set(k,k,1); tunnel.group.visible=open<0.98} }   // with a landing floor the tunnel stays   // opens out at the bottom; tunnel.js ignores `open` for now
@@ -1179,7 +1324,9 @@ function frame(now){
  robotTZ=-cam-lead; toWorld(-camR-lead,robotRx,robotRy,robot.group.position);
  /* the group's orientation: the dive with bank and pitch in the fall; from land(1) it rights itself over 0.25 to 0.55 s (eased slerp) to upright, feet down, facing the travel, and holds */
  const landingNow=act===2&&phase2==='landing';
- if(landingNow||ended||endP>0){ const u=landingNow?landU:1, us=u*u*(3-2*u); robot.group.quaternion.slerpQuaternions(FALL_Q,UPRIGHT_Q,us) }
+ if(landingNow&&!landCalled&&!scrub)robot.group.quaternion.copy(FALL_Q);                                              // the burn approach keeps the dive attitude: land() absorbs it and the body rights itself with a torque
+ else if(landingNow&&landCalled)robot.group.quaternion.copy(UPRIGHT_Q);                                              // yaw only from here (the module cleared pitch and roll on the group)
+ else if(landingNow||ended||endP>0){ const u=landingNow?landU:1, us=u*u*(3-2*u); robot.group.quaternion.slerpQuaternions(FALL_Q,UPRIGHT_Q,us) }   // the unwind and the END: the page's own pitch
  else robot.group.quaternion.copy(FALL_Q).premultiply(tmpQ2.setFromEuler(tmpE.set(pitchS,0,bankS)));   // he leans into the turn and pitches on climbs
  robot.update(raw/1000,shipT/1000); scaleLights(robotLights,robotScale);
  /* END lights ride with him and only exist while the END has weight */
@@ -1190,9 +1337,9 @@ function frame(now){
   fillL.position.set(P.x+35,P.y+30,P.z+60); rimL.intensity=0.9*litK; fillL.intensity=0.5*litK;
   keyL.position.set(camera.position.x-30,camera.position.y+18,camera.position.z-25); keyL.intensity=1.6*litK }
  if(endP>=1&&!endShown)showEnd(); if(endP<1&&endShown)hideEnd();
- if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,scrub,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',landK:+landK.toFixed(2),look:(()=>{try{return tunnel&&tunnel.currentLook?tunnel.currentLook():null}catch(e){return null}})(),phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
+ if(DBG){ window.__frameNo=frameNo; window.__state=()=>({f:frameNo,cam:cam|0,v:+v.toFixed(2),vT:+vT.toFixed(2),ended,endP:+endP.toFixed(2),pose:robotPose,turned:robotTurned,S:+robotScale.toFixed(1),lead:lead|0,p:robot.group.position.toArray().map(x=>x|0),open:+open.toFixed(2),endShown,insp:insp&&insp.slug,playing,hover:hoverO&&hoverO.slug,fig:(()=>{let y0=1e9,y1=-1e9,x0=1e9,x1=-1e9;const B=new THREE.Box3(),c=new THREE.Vector3();robot.group.traverse(o=>{if(!o.isMesh||!o.visible)return;B.setFromObject(o);if(B.isEmpty())return;const sz=new THREE.Vector3();B.getSize(sz);if(Math.max(sz.x,sz.y,sz.z)>2.5*robotScale)return;for(let i=0;i<8;i++){c.set(i&1?B.max.x:B.min.x,i&2?B.max.y:B.min.y,i&4?B.max.z:B.min.z).project(camera);const sy=(-c.y*.5+.5),sx=(c.x*.5+.5);y0=Math.min(y0,sy);y1=Math.max(y1,sy);x0=Math.min(x0,sx);x1=Math.max(x1,sx)}});return {top:+y0.toFixed(3),bottom:+y1.toFixed(3),h:+(y1-y0).toFixed(3),w:+(x1-x0).toFixed(3)}})(),act,phase2,scrub,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',landK:+landK.toFixed(2),look:(()=>{try{return tunnel&&tunnel.currentLook?tunnel.currentLook():null}catch(e){return null}})(),phaseT:+phaseT.toFixed(1),floor:(()=>{try{const f=tunnel?.landingY?.();return typeof f==='number'?+f.toFixed(1):null}catch(e){return null}})(),feetY:+(robotP.y-0.95*robotScale).toFixed(1),robotY:+robotP.y.toFixed(1),camY:+camera.position.y.toFixed(1),landPhase:(()=>{try{return crt.landPhase?crt.landPhase():null}catch(e){return null}})(),grounded,stage:(phase2==='plunge'&&A2P.stages)?A2P.stages[stageI]||'':'',steer:[+steer.x.toFixed(2),+steer.y.toFixed(2)],bank:+(bankS*180/Math.PI).toFixed(1),fov:+camera.fov.toFixed(1),cuts:cutLog.map(c=>({phase:c.phase,pt:c.pt,t:Math.round(c.t)})),landed,landCalled,lp:(()=>{try{return crt.landPhase?.()}catch(e){return null}})(),lY:(()=>{try{return +(crt.landingY?.()||0).toFixed(3)}catch(e){return null}})(),auto,invClass:document.body.classList.contains('inv'),flashN,loading,loadReady,loadFrac:+loadFrac().toFixed(2),bootT:bootT|0,openLook,inv:+(((tunnel&&tunnel.inverse)||0).toFixed(2)),morphs:morphSeen,logged:cards.filter(o=>o.logged).map(o=>o.slug),rim:+rimL.intensity.toFixed(3),chase:+chaseL.intensity.toFixed(3),tum:robotTumble,q:(robot.joints&&robot.joints.spine?robot.joints.spine:robot.group).getWorldQuaternion(new THREE.Quaternion()).toArray().map(x=>+x.toFixed(3)),camz:+camera.position.z.toFixed(1)});
   window.__grab=slug=>{const o=cards.find(c=>c.slug===slug); if(o){grab(o); tgt.set(0,-1.5,-30);camera.localToWorld(tgt);o.grp.position.copy(tgt)}};
-  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__tsInsp=x=>{TS_INSP=x}; window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
+  window.__setCam=z=>{cam=z;vT=0;v=0;auto=false}; window.__tsInsp=x=>{TS_INSP=x}; window.__zoom=x=>{zoomOff=!x}; window.__dpr=()=>dprNow; window.__loseGL=()=>{ const ext=renderer.getContext().getExtension('WEBGL_lose_context'); if(!ext)return false; ext.loseContext(); setTimeout(()=>ext.restoreContext(),800); return true }; window.__loadP=()=>Object.assign({},loadP); window.__sj=SJ; window.__logos=()=>cards.filter(c=>c.logo).map(c=>({slug:c.slug,word:!!c.redraw,ready:c.ready,lazy:!!c.lazy})); window.__viewport=()=>({w:renderer.domElement.width,h:renderer.domElement.height,aspect:+camera.aspect.toFixed(3),dpr:dprNow}); window.__lastRaw=()=>({raw:lastRaw,rawAll:lastRawAll}); window.__logTest=()=>{ const o=cards.find(c=>!c.logged); if(o)logObject(o); return loggedSet.size }; window.__figure=()=>robot.standIn?'capsule':'crt'; window.__tunnel=()=>tunnel?'module':'rings'; window.__audio=()=>audio.standIn?'silent':'module'; window.__zoomS=()=>+zoom.uniforms.strength.value.toFixed(3); window.__frames=()=>Array.from(frameTimes.slice(0,Math.min(ftI,1200))); window.__lightsOff=()=>{rimL.intensity=0;fillL.intensity=0;keyL.intensity=0;rimL.visible=fillL.visible=keyL.visible=false;lightsKill=true}; window.__titles=TITLE_Z; window.__caps=CAPS.map(c=>({t:c.text,z:Math.round(c.z)})); window.__lY=()=>tunnel&&tunnel.landingY?tunnel.landingY():null; window.__bare=b=>{bareMode=!!b}; window.__look=(n,f)=>tunnel?.setLook?.(n,f==null?1.2:f);  window.__obj=slug=>{const o=cards.find(c=>c.slug===slug);return o&&{z:o.grp.position.z|0,ahead:(camera.position.z-o.grp.position.z)|0,op:+o.front.material.opacity.toFixed(2),halo:+o.back.material.opacity.toFixed(2),gone:!!o.gone}};
   window.__facing=k=>robot.setFacing?.(k==='pi'?new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI):k==='id'?new THREE.Quaternion():null) }
 
  /* particles: stretch with speed, recycle, energy budget */
@@ -1231,7 +1378,7 @@ function frame(now){
    else{tgt.set(18,6,-70);camera.localToWorld(tgt);g.position.lerp(tgt,0.05*dt);g.rotation.x+=o.spin.x*dtw*3;g.rotation.y+=o.spin.y*dtw*3; if(o.prop){ try{o.prop.update?.(raw/1000,t/60)}catch(e){} } }
    halo(0.4); continue }
   /* culling only: visible within 1400 ahead or 60 behind; nothing ever moves, so backing up finds it exactly where it was */
-  const dz=camera.position.z-o.base.z; g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
+  const dz=camera.position.z-o.base.z; if(o.lazy&&dz<2500)o.lazy(); g.visible=dz>-60&&dz<1400; if(!g.visible)continue;
   /* pickup: the ROBOT (not the camera) crosses the object's z inside its radius */
   if(prevRZ!==null){ const oz=o.base.z, rz=robotTZ; if((prevRZ-oz)*(rz-oz)<=0){ const r=Math.max(16,Math.hypot(o.pw||o.w,o.h)/2*1.8);   // every crossing, logged or not: a return visit still opens it; generous, arrows are coarse
    if(Math.abs(robot.group.position.x-g.position.x)<=r&&Math.abs(robot.group.position.y-g.position.y)<=r){ if(!o.logged)logObject(o); if(insp&&insp!==o&&act===1)release(); if(!insp&&!o.releasing&&act===1){ grab(o); try{o.prop?.poke?.()}catch(e){} if(!RM){shAmp=Math.max(shAmp,0.35);shPh=0} } } } }   // the hit: a jolt, then it expands   // bashing into it opens it (owner): no click needed
@@ -1307,6 +1454,10 @@ function frame(now){
  else { const fc=tunnel&&tunnel.fogColor; if(fc&&fc.isColor){ scene.background.copy(fc); scene.fog.color.copy(fc) }                        // bliss: the horizon fades to the sky, not to black
   else if(scene.background.getHex()!==0x03040a){ scene.background.setHex(0x03040a); scene.fog.color.setHex(0x03040a) } }
  /* post amounts */
+ { const on=act===2&&phase2==='plunge'&&!RM&&!lowEnd&&!zoomOff; zoomK+=((on?1:0)-zoomK)*Math.min(1,raw/300);                  // eases in and out over 0.3 s at the plunge's edges
+   const zs=zoomK*(0.06+0.10*sp); zoom.uniforms.strength.value=zs; zoom.enabled=zs>=0.01;
+   if(zoom.enabled){ toWorld(cam+600,0,0,vpV).project(camera); const c=zoom.uniforms.center.value;                                      // the vanishing point: a far point on the tunnel's axis, wherever the bend, pitch, yaw and roll put it
+    c.set(isFinite(vpV.x)?Math.max(0.15,Math.min(0.85,0.5+vpV.x*0.5)):0.5, isFinite(vpV.y)?Math.max(0.15,Math.min(0.85,0.5+vpV.y*0.5)):0.5) } }
  shift.uniforms.amount.value = (RM||invNow||lowEnd||calm)?0 : (sp*sp*0.0075 + sh*0.0016 + ripAmt);
  bloom.strength = (RM||invNow)?0 : calm?0.12 : (act===2&&phase2==='plunge')?Math.min(0.35,0.2+0.15*(L?L.bass||0:0)) : (lowEnd?0.3:0.36)+0.5*sp+(L?0.18*(L.bass||0):0);   // plunge: no glow, 0.35 at most
 
@@ -1325,7 +1476,7 @@ function frame(now){
 }
 /* debug hash, for screenshots and checks: #cam=<z>  #near=<slug> (parks it 70 ahead, facing)  #insp=<slug>  #pl=<playlist id, overrides the inspected client's>  #play=1  #end=1  #jump=1 (the CONTACT jump from the top)  #hold=1 (brake held) */
 function debugHash(){ const h=new URLSearchParams(location.hash.replace(/^#/,'')); if(![...h.keys()].length)return;
- if(!h.has('loader')){ loading=false; loadReady=true; $('loader').hidden=true; document.body.classList.remove('loading') }                   // the harness goes straight in unless it asks for the loader
+ if(!h.has('loader')){ loading=false; loadReady=true; SJ.ready=true; $('loader').hidden=true; document.body.classList.remove('loading') }                   // the harness goes straight in unless it asks for the loader
  const z=parseFloat(h.get('cam')); if(isFinite(z)){cam=Math.max(0,Math.min(END_STOP,z))}
  const o=h.get('insp')&&cards.find(c=>c.slug===h.get('insp')), n=h.get('near')&&cards.find(c=>c.slug===h.get('near'));
  if(o){ if(h.get('pl'))o.playlist=h.get('pl'); if(!isFinite(z))cam=Math.max(0,-o.base.z-90) }
@@ -1337,16 +1488,19 @@ function debugHash(){ const h=new URLSearchParams(location.hash.replace(/^#/,'')
  if(h.get('hold')==='1'){hold=true;document.body.classList.add('brake')}
  if(h.has('act2')){ cam=HANDOFF_Z+10; camera.position.set(0,0,-cam); startAct2(parseInt(h.get('act2'))||0) }   // 0 memory, 1 plunge, 2 landing
  if(h.get('jump')==='1')goToEnd() }
-document.fonts.ready.then(()=>{loadP.fonts=1},()=>{loadP.fonts=1});
 try{ loadTrackOnce() }catch(e){ loadP.track=1 }                                                   // fetch + decode now, play after the gesture
 /* the memories: his clips and photos for the MEMORY phase; an empty or missing manifest means the tunnel shows its own placeholders */
-(async()=>{ try{ const url=A2M.manifest; if(!url)return; const r=await fetch(url,{cache:'no-store'}); if(!r.ok)return; const list=await r.json(); if(!Array.isArray(list))return;
+let memReq=false;
+async function loadMemories(){ if(memReq)return; memReq=true; try{ const url=A2M.manifest; if(!url)return; const r=await fetch(url,{cache:'no-store'}); if(!r.ok)return; const list=await r.json(); if(!Array.isArray(list))return;
  for(const it of list.slice(0,24)){ const src=typeof it==='string'?it:(it&&it.src); if(!src)continue;
   if(/\.(mp4|webm|mov|m4v)(\?|$)/i.test(src)){ const vd=document.createElement('video'); vd.muted=true; vd.loop=true; vd.playsInline=true; vd.setAttribute('playsinline',''); vd.preload='metadata'; vd.crossOrigin='anonymous'; vd.src=src;
    const tex=new THREE.VideoTexture(vd); tex.colorSpace=THREE.SRGBColorSpace; memT.push({tex,video:vd,src}) }
   else { const tex=new THREE.TextureLoader().load(src); tex.colorSpace=THREE.SRGBColorSpace; memT.push({tex,src}) } }
- }catch(e){ console.warn('memories: manifest unreadable',e&&e.message||e) } })();
-const fontsUp=Promise.all(['900 128px Archivo','700 126px Archivo','800 40px Archivo','400 28px "Space Mono"'].map(f=>document.fonts.load(f).catch(()=>{})));
+ }catch(e){ console.warn('memories: manifest unreadable',e&&e.message||e) } }
+const fontsUp=Promise.race([Promise.all(['900 128px Archivo','700 126px Archivo','800 40px Archivo','400 28px "Space Mono"'].map(f=>document.fonts.load(f).catch(()=>{}))),new Promise(r=>setTimeout(r,4000))]);
+fontsUp.then(()=>{loadP.fonts=1},()=>{loadP.fonts=1});
+/* a font that lands after the canvases were drawn: every wordmark and line drawn in the fallback face is redrawn once */
+try{ document.fonts.addEventListener('loadingdone',()=>{ if(!fontLanded())return; for(const o of cards)if(o.redraw&&!o.fontOk){ o.fontOk=true; o.redraw() } for(const m of allLines)if(m.userData.redraw)m.userData.redraw() }) }catch(e){}
 /* prewarm: every texture uploaded and every material compiled while the loader is still up, so nothing stalls mid-fall */
 function prewarm(){ try{
  const vis=[]; for(const o of cards){ vis.push([o.grp,o.grp.visible]); o.grp.visible=true; const m=o.front.material.map; if(m)renderer.initTexture(m); if(o.back&&o.back.material.map)renderer.initTexture(o.back.material.map) }
@@ -1356,5 +1510,5 @@ function prewarm(){ try{
  if(crt.group)crt.group.visible=true; renderer.compile(scene,camera);
  for(const [o,v] of vis)o.visible=v; lights.forEach((l,i)=>l.visible=lv[i]);
  }catch(e){ console.warn('prewarm',e&&e.message||e) } }
-Promise.all([document.fonts.ready.catch(()=>{}),fontsUp,loadProps(),loadList()]).then(([,,,list])=>{buildCards(list);prewarm();if(!logoTotal)loadP.logos=1;dispatchEvent(new Event('resize'));debugHash();last=performance.now();renderer.setAnimationLoop(frame)});
+Promise.all([Promise.race([document.fonts.ready.catch(()=>{}),new Promise(r=>setTimeout(r,4000))]),fontsUp,loadProps(),loadList()]).then(([,,,list])=>{buildCards(list); for(const o of cards)if(o.lazy&&(-o.base.z)<2500)o.lazy(); prewarm();if(!logoTotal)loadP.logos=1;dispatchEvent(new Event('resize'));debugHash();last=performance.now();renderer.setAnimationLoop(frame)});
 </script></body></html>

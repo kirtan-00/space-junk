@@ -48,14 +48,26 @@
      setSuitTint(hex|null)  light emissive tint on the knit and trousers.
      setIntent(v) 0..1, eased over 300 ms. At 1 the eyes narrow to 35 percent height,
                   slide together, brighten 1.3x with a faint accent tint, and blink less.
-     land(s)      one continuous landing, about 1.9 s, driven by update's t: legs swing
-                  down first (250 ms, overshoot), the torso rights itself and the arms come
-                  forward for balance, the mains flare at 300 ms and the body decelerates into
-                  a felt hover, knees bend before contact, contact at 1050 ms (squash, heels
-                  then toes, arms swing back, one head bob, cables whip, soles flash), the rise
-                  into stand from 1200 ms with a weight shift, a sign-off puff at 1750 ms.
-                  Joints run under-damped springs during the motion. Reduced motion: straight
-                  to stand, grounded.
+     land(s, {vy})  a simulated landing. The body has mass: the mains ramp over 0.25 s to
+                  1.3 g, arrest the fall at a real 0.30 hover, hold 0.45 s, taper, and the
+                  body drops under gravity onto a ground spring-damper (400/s^2, ratio 0.35):
+                  about 0.12 compression, two decaying bounces, settle, then the sign-off
+                  puff and the grounded idle. vy is the fall's vertical speed in units/s
+                  (default 1.2); the start height is solved so the hover lands at 0.30.
+                  Knees and hips compress with the ground force, arms balance with the
+                  accelerations (ratio 0.55), the set lags by a 90 ms spring and nods on
+                  contact. The body rights itself with a torque from 50 ms (about 6 deg
+                  overshoot, 0.5 s settle): on land() the module absorbs the group's pitch
+                  and roll into the rig and clears them on the group, so from here the
+                  page must NOT slerp or pitch the group; it keeps the yaw only.
+                  Reduced motion: straight to stand, grounded.
+     landStartY(vy)  the height above the landing ground at which to call land() for that
+                  fall speed, so the figure does not jump: when the figure's height above
+                  the ground reaches landStartY(vy), put the group's origin on the ground
+                  and call land(s, {vy}). The rig then carries the height.
+     landingY()   the simulated body height above feet-on-ground (already applied on the
+                  rig; read it to place dust or a shadow).
+     onContact    assignable callback, fired once at the true contact time.
      landPhase()  'burn' | 'touch' | 'stand' | null (null when no landing is running; the
                   'stand' phase reports until 3.5 s after the start).
      setGrounded(b)  true turns off the tumble and the zero-g bob and runs a weight-shift
@@ -922,30 +934,84 @@ export function makeCRT(THREE, opts = {}) {
   let chaseT = Infinity;
   let groundedOn = false, groundedAmt = 0;
   let landMain = 0;          /* the landing's own demand on the mains, on top of setThrust */
-  let landLift = 0;          /* hover height during the burn */
+  let landLift = 0;          /* body height from the simulation */
   let soleFlash = 0;
-  /* one continuous motion, about 1.9 s. Beats (seconds from land()):
-     0.00 legs swing down first (hips 0 to 0.9 rad in 250 ms, overshoot)
-     0.25 the torso rights itself, arms come forward and out for balance
-     0.30 mains fire down with a flare, the body decelerates into a felt hover
-     0.90 knees bend before contact (anticipation)
-     1.05 contact: squash, heels then toes, arms swing back, one head bob, cables whip
-     1.20 the rise into stand, weight shift left foot to right, hands settle
-     1.75 sign-off puff */
-  const LAND_IMPACT = 1.05, LAND_STAND = 1.20, LAND_PUFF = 1.75;
+  let armBal = 0, armBalV = 0, spineLean = 0, headLag = 0, headLagV = 0, compress = 0;
+  /* ----- the landing is a vertical body simulation -----
+     Units: the figure is 2.2 tall (about a person), so g = 12 units/s^2.
+     y is the body height above feet-on-ground, carried on the rig. From land():
+       the mains ramp over 0.25 s from 1.0 g to 1.3 g and hold until the fall is arrested at
+       about 0.30 above the ground, a PD hold keeps a real hover for 0.45 s, the thrust tapers
+       to nothing, the body drops under gravity, and a ground spring-damper (400/s^2,
+       damping ratio 0.35) compresses it about 0.12 and lets it bounce twice and settle.
+     Joints, arms, spine and the set all react to the simulated accelerations. */
+  const G = 12.0, HOVER_Y = 0.30, GROUND_K = 400, GROUND_C = 2 * 0.35 * Math.sqrt(400);
+  const Y_REST = -G / GROUND_K;   /* where the body sits on the ground spring under its own weight */
+  const sim = { y: 0, vy: 0, ay: 0, thrust: 0, hoverT: -1, cutT: -1, contactT: -1, bounces: 0, settledT: -1, puffed: false, puffT: -1, ground: 0 };
+  /* the height above the ground at which land() should be called for a given fall speed:
+     the dry run of the thrust profile from that speed arrests the fall exactly at the hover */
+  function landStartY(vy) {
+    const vy0 = -Math.abs(typeof vy === 'number' ? vy : 1.2);
+    let yy = 0, vv = vy0, T = 0, drop = 0;
+    for (let i = 0; i < 400 && !(T > 0.25 && vv >= 0); i++) {
+      const th = 1.0 + 0.3 * Math.min(1, T / 0.25);
+      vv += (th - 1) * G / 120; yy += vv / 120; T += 1 / 120; drop = Math.min(drop, yy);
+    }
+    return HOVER_Y - drop;
+  }
   let landHeadBob = 0, landZeta = 1;
-  function land(strength) {
+  const thrustProfile = (T, y, vy) => {
+    /* returns thrust in g. Ramp, hold at 1.3 until arrested, PD hover, taper, cut. */
+    if (sim.cutT >= 0) return T < sim.cutT + 0.15 ? Math.max(0, 1.0 * (1 - (T - sim.cutT) / 0.15)) : 0;
+    if (sim.hoverT >= 0) return Math.min(1.7, Math.max(0.2, 1 + 30.0 * (HOVER_Y - y) - 8.0 * vy));
+    return 1.0 + 0.3 * Math.min(1, T / 0.25);
+  };
+  const stepSim = (dt, T) => {
+    const y0 = sim.y;
+    sim.thrust = thrustProfile(T, sim.y, sim.vy);
+    let a = (sim.thrust - 1) * G;
+    sim.ground = 0;
+    if (sim.y < 0) { sim.ground = GROUND_K * (-sim.y) + GROUND_C * (-sim.vy); a += sim.ground; }
+    sim.ay = a;
+    sim.vy += a * dt;
+    sim.y += sim.vy * dt;
+    /* arrested: the hover begins */
+    if (sim.hoverT < 0 && sim.cutT < 0 && T > 0.25 && sim.vy >= 0) sim.hoverT = T;
+    if (sim.hoverT >= 0 && sim.cutT < 0 && T >= sim.hoverT + 0.45) sim.cutT = T;
+    const contact = y0 >= 0 && sim.y < 0;
+    if (contact) { if (sim.contactT < 0) sim.contactT = T; else sim.bounces++; }
+    if (sim.contactT >= 0 && sim.settledT < 0 && Math.abs(sim.y - Y_REST) < 0.006 && Math.abs(sim.vy) < 0.08 && T > sim.contactT + 0.3) sim.settledT = T;
+    return contact;
+  };
+  function land(strength, o) {
     landS = strength == null ? 1 : Math.min(Math.max(+strength || 0, 0), 1);
+    o = o || {};
+    if (REDUCED) { setPose('stand', 1); groundedOn = true; landT = Infinity; return; }
+    /* continuity: start from the fall's own vertical speed, find the height that lets the
+       thrust profile arrest it exactly at the hover height (dry run of the same integrator) */
+    const vy0 = typeof o.vy === 'number' ? -Math.abs(o.vy) : -1.2;
+    Object.assign(sim, { y: landStartY(vy0), vy: vy0, ay: 0, thrust: 0, hoverT: -1, cutT: -1, contactT: -1, bounces: 0, settledT: -1, puffed: false, puffT: -1, ground: 0 });
+    /* the page keeps only the group's yaw from here: absorb its pitch and roll into the rig
+       so the body can right itself with a torque, then clear them on the group */
+    _e.setFromQuaternion(group.quaternion, 'YXZ');
+    landQ.setFromEuler(_e2.set(_e.x, 0, _e.z, 'XZY'));
+    tumQ.premultiply(landQ);
+    group.rotation.set(0, _e.y, 0);
+    landFrom = Object.assign({}, poseW);
     landT = 0;
     landStage = 0;
-    if (REDUCED) { setPose('stand', 1); groundedOn = true; landT = Infinity; return; }
+    landHeadBob = 0;
   }
+  const landQ = new THREE.Quaternion();
+  const _e2 = new THREE.Euler();
   function landPhase() {
     if (landT === Infinity) return null;
-    if (landT < 1.0) return 'burn';
-    if (landT < LAND_STAND) return 'touch';
+    if (sim.contactT < 0) return 'burn';
+    if (sim.settledT < 0) return 'touch';
     return 'stand';
   }
+  function landingY() { return landT === Infinity ? 0 : sim.y - (sim.contactT >= 0 ? Y_REST : 0); }
+  let onContact = null;
   const sstep = (a, b, x) => { const u = Math.min(Math.max((x - a) / (b - a), 0), 1); return u * u * (3 - 2 * u); };
   function setGrounded(on) { groundedOn = !!on; }
 
@@ -958,14 +1024,14 @@ export function makeCRT(THREE, opts = {}) {
   const tumW = new THREE.Vector3();
   const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(), _v3 = new THREE.Vector3();
   const FACE_K = 6;
-  const springQuat = (cur, target, w, K, dt) => {
+  const springQuat = (cur, target, w, K, dt, zeta) => {
     _q1.copy(target).multiply(_q2.copy(cur).invert());
     if (_q1.w < 0) _q1.set(-_q1.x, -_q1.y, -_q1.z, -_q1.w);
     const cw = Math.min(1, _q1.w);
     const ang = 2 * Math.acos(cw);
     const sn = Math.sqrt(Math.max(0, 1 - cw * cw));
     if (sn > 1e-6) _v3.set(_q1.x / sn, _q1.y / sn, _q1.z / sn).multiplyScalar(ang); else _v3.set(0, 0, 0);
-    const C = 2 * Math.sqrt(K);
+    const C = 2 * (zeta || 1) * Math.sqrt(K);
     w.x += (K * _v3.x - C * w.x) * dt;
     w.y += (K * _v3.y - C * w.y) * dt;
     w.z += (K * _v3.z - C * w.z) * dt;
@@ -1111,55 +1177,60 @@ export function makeCRT(THREE, opts = {}) {
     groundedAmt += ((groundedOn ? 1 : 0) - groundedAmt) * Math.min(1, dt / 0.5);
     const zeroG = 1 - groundedAmt;
 
-    /* landing: a continuous blend of keyframe poses through the joint springs */
+    /* landing: integrate the body, derive everything else from its accelerations */
     let squash = 0, settle = 0, wobble = 0, armSwing = 0, toeRoll = 0, weightShift = 0;
     landMain = 0; landHeadBob = 0; landZeta = 1; soleFlash = Math.max(0, soleFlash - dt / 0.25);
+    compress = 0;
     if (landT !== Infinity) {
-      const prev = landT;
-      if (landT === 0) landFrom = Object.assign({}, poseW);
       landT += dt;
       const L = landT;
-      /* pose weights along the timeline */
-      const wLegs = sstep(0.0, 0.25, L) * (1 - sstep(0.25, 0.55, L));
-      const wHover = sstep(0.25, 0.55, L) * (1 - sstep(0.90, 1.05, L));
-      const wAntic = sstep(0.90, 1.05, L) * (1 - sstep(1.05, 1.20, L));
-      const wBrace = sstep(1.05, 1.20, L) * (1 - sstep(1.20, 1.70, L));
-      const wStand = sstep(1.20, 1.70, L);
-      const wStart = 1 - sstep(0.0, 0.25, L);
-      for (const k in poseW) poseW[k] = (landFrom[k] || 0) * wStart;
-      poseW.legsdown += wLegs; poseW.hover += wHover; poseW.antic += wAntic; poseW.brace += wBrace; poseW.stand += wStand;
-      /* under-damped joints while the body is still moving, settled after */
-      landZeta = L < LAND_STAND ? 0.62 : 0.85;
-      /* mains: flare at 0.30, hard burn, cut just before contact, puff at the end */
-      if (L >= 0.30 && L < 1.02) {
-        const flare = 1 + 0.35 * Math.exp(-(L - 0.30) * 12);
-        landMain = Math.min(1, landS * sstep(0.30, 0.42, L) * flare * (0.9 + 0.1 * Math.sin(t * 23.0) * Math.sin(t * 17.0)));
+      /* sub-step the integrator for a stiff ground spring */
+      const sub = Math.max(1, Math.ceil(dt / 0.004));
+      let hit = false;
+      for (let i = 0; i < sub; i++) hit = stepSim(dt / sub, L - dt + (i + 1) * dt / sub) || hit;
+      /* once on the ground the rest compression is the new zero, so he stands on the floor */
+      landLift = Math.max(sim.y - (sim.contactT >= 0 ? Y_REST : 0), -0.14);
+      /* the base pose eases from the fall toward stand as the body rights itself */
+      const w = sstep(0.25, 1.0, L);
+      for (const k in poseW) poseW[k] = (landFrom[k] || 0) * (1 - w);
+      poseW.stand += w;
+      /* mains: the simulated thrust, plus the sign-off puff after the last bounce */
+      landMain = Math.min(1, sim.thrust / 1.3) * landS;
+      if (sim.settledT >= 0 && !sim.puffed) { if (L >= sim.settledT + 0.25) { sim.puffed = true; sim.puffT = L; } }
+      if (sim.puffT >= 0 && L >= sim.puffT && L < sim.puffT + 0.16) landMain = Math.max(landMain, 0.35 * landS);
+      /* ground reaction: knees and hips compress with the contact force, extend as it releases */
+      compress = Math.min(1, sim.ground / (2 * G));
+      /* arms balance: forward with the upward deceleration, back on the rebound release,
+         forward again while the jets carry him */
+      const burn = Math.min(1, sim.thrust / 1.3);
+      const armTarget = -0.10 * Math.max(-3, Math.min(3, sim.ay / G)) - 0.35 * burn * (sim.contactT < 0 ? 1 : 0);
+      armBalV += (-60 * (armBal - armTarget) - 2 * 0.55 * Math.sqrt(60) * armBalV) * dt; armBal += armBalV * dt;
+      spineLean = 0.06 * Math.max(-2, Math.min(2, sim.ay / G)) + 0.18 * compress;
+      /* the set lags the body by a 90 ms spring, so it nods on contact */
+      const lagTarget = 0.10 * Math.max(-2.5, Math.min(2.5, sim.ay / G));
+      headLagV += (-123 * (headLag - lagTarget) - 2 * 0.6 * Math.sqrt(123) * headLagV) * dt; headLag += headLagV * dt;
+      landHeadBob = headLag;
+      wobble = (sim.hoverT >= 0 && sim.cutT < 0) ? 0.012 * landS * Math.sin(t * TAU / 0.9) * Math.sin(t * TAU / 1.7) : 0;
+      if (hit && sim.bounces === 0 && sim.contactT >= 0 && L - sim.contactT < dt * 1.5) {
+        /* the contact event: soles flash, cables whip, eyes blink, dots chase, dust for the page */
+        chaseT = 0; blinkT = 0; soleFlash = 1; sway.z -= 0.12 * landS; sway.x += 0.05 * landS;
+        if (typeof onContact === 'function') { try { onContact(L); } catch (e) { /* page's problem */ } }
       }
-      if (L >= LAND_PUFF && L < LAND_PUFF + 0.16) landMain = 0.35 * landS;
-      /* lift: the jets catch him at 0.30, a felt hover, then a slow drift and the drop */
-      landLift = 0.30 * sstep(0.30, 0.60, L) * (1 - 0.27 * sstep(0.65, 0.90, L)) * (1 - sstep(0.90, LAND_IMPACT, L) ** 2);
-      wobble = wHover * 0.015 * landS * Math.sin(t * TAU / 0.9) * Math.sin(t * TAU / 1.7);
-      if (prev < LAND_IMPACT && L >= LAND_IMPACT) { chaseT = 0; blinkT = 0; soleFlash = 1; sway.z -= 0.12 * landS; sway.x += 0.05 * landS; }
-      if (L >= LAND_STAND && landStage < 1) { landStage = 1; groundedOn = true; }
-      const tau = L - LAND_IMPACT;
-      if (tau >= 0) {
-        squash = (tau < 0.04 ? tau / 0.04 : Math.exp(-(tau - 0.04) * 8) * Math.cos((tau - 0.04) * TAU / 0.2)) * landS;
-        settle = Math.exp(-tau * 2.2) * (Math.sin(tau * TAU / 0.9) + 0.6 * Math.sin(tau * TAU / 1.4)) * landS;
-        /* heels first then toes: toes up at contact rolling flat over 150 ms */
-        toeRoll = 0.28 * Math.max(0, 1 - tau / 0.15) * landS;
-        /* arms swing back and settle */
-        armSwing = 0.35 * Math.exp(-tau * 4) * Math.sin(Math.min(tau, 0.6) * TAU / 0.6) * landS;
-        /* one head bob */
-        landHeadBob = 0.12 * Math.sin(Math.min(tau, 0.25) * Math.PI / 0.25) * landS;
+      if (sim.contactT >= 0) {
+        const tau = L - sim.contactT;
+        toeRoll = 0.25 * Math.max(0, 1 - tau / 0.15) * landS;
+        if (sim.settledT >= 0) {
+          const u = L - sim.settledT;
+          weightShift = 0.035 * Math.exp(-u * 1.6) * Math.sin(u * TAU / 1.0) * landS;
+          if (landStage < 1) { landStage = 1; groundedOn = true; }
+        }
       }
-      if (L >= LAND_STAND) {
-        const u = L - LAND_STAND;
-        weightShift = 0.035 * Math.exp(-u * 1.6) * Math.sin(u * TAU / 1.0) * landS;
-      }
-      if (L > 3.5) { landT = Infinity; landFrom = null; }
-    } else landLift = 0;
+      if (L > 4.0) { landT = Infinity; landFrom = null; }
+    } else { landLift = 0; armBal = 0; headLag = 0; spineLean = 0; }
+    /* the squash is the ground compression itself */
+    squash = landT !== Infinity && sim.y < Y_REST ? Math.min(1, (Y_REST - sim.y) / 0.12) : 0;
     rig.rotation.set(rot.x + wobble * 0.6, rot.y, rot.z + 0.022 * settle + wobble);
-    rig.scale.set(1 + 0.03 * squash, 1 - 0.06 * squash, 1 + 0.03 * squash);
+    rig.scale.set(1 + 0.025 * squash, 1 - 0.05 * squash, 1 + 0.025 * squash);
     /* breathing: the zero-g bob fades out when grounded, a weight shift takes over */
     rig.position.y = zeroG * (0.010 * Math.sin(t * TAU / 5.3) + 0.006 * Math.sin(t * TAU / 8.9 + 1.0)) + 0.012 * settle + landLift;
     J.pelvis.rotation.z = groundedAmt * 1.5 * D2R * Math.sin(t * TAU / 5.3) + weightShift;
@@ -1189,8 +1260,14 @@ export function makeCRT(THREE, opts = {}) {
     const tB = TUMBLE_A * tumbleW * Math.sin(t * TAU / 15.3 + 1.1);
     const dA = TUMBLE_A * tumbleW * (TAU / 9.7) * Math.cos(t * TAU / 9.7);
     const dB = TUMBLE_A * tumbleW * (TAU / 15.3) * Math.cos(t * TAU / 15.3 + 1.1);
-    if (facing) _q2.copy(facingQ); else _q2.setFromEuler(_e.set(tA, 0, tB, 'XYZ'));
-    springQuat(tumQ, _q2, tumW, FACE_K, dt);
+    if (landT !== Infinity) {
+      /* righting torque from 50 ms in: stiffness 200, damping ratio 0.65, about 6 deg overshoot */
+      _q2.identity();
+      if (landT >= 0.05) springQuat(tumQ, _q2, tumW, 200, dt, 0.65);
+    } else {
+      if (facing) _q2.copy(facingQ); else _q2.setFromEuler(_e.set(tA, 0, tB, 'XYZ'));
+      springQuat(tumQ, _q2, tumW, FACE_K, dt);
+    }
     tum.quaternion.copy(tumQ);
 
     /* joints */
@@ -1205,10 +1282,18 @@ export function makeCRT(THREE, opts = {}) {
         else if (n.startsWith('elbow') || n.startsWith('knee')) { tg[0] += -0.1 * dA * fw; }
         else if (n === 'spine') { tg[0] += -0.06 * dA * fw; tg[2] += 0.05 * dB * fw; }
       }
-      if (armSwing !== 0 && n.startsWith('shoulder')) tg[0] += armSwing;
-      /* during a landing the joints run stiffer and under-damped so the beats overshoot a little */
-      const landing = landT !== Infinity && landT < 1.9;
-      const K = n === 'head' ? (landing ? 50 : HEAD_K) : (landing ? 90 : JOINT_K), C = 2 * landZeta * Math.sqrt(K);
+      const landing = landT !== Infinity;
+      let K = n === 'head' ? HEAD_K : JOINT_K, zeta = 1;
+      if (landing) {
+        const sgn = n.endsWith('L') ? -1 : 1;
+        if (n.startsWith('knee')) { tg[0] += 1.1 * compress; K = 120; zeta = 0.75; }
+        else if (n.startsWith('hip')) { tg[0] += -0.6 * compress; K = 120; zeta = 0.75; }
+        else if (n.startsWith('shoulder')) { tg[0] += armBal; tg[2] += sgn * 0.45 * Math.max(0, -armBal); K = 60; zeta = 0.55; }
+        else if (n.startsWith('elbow')) { tg[0] += 0.5 * armBal; K = 60; zeta = 0.55; }
+        else if (n === 'spine') { tg[0] += spineLean; K = 80; zeta = 0.7; }
+        else if (n === 'head') { K = 123; zeta = 0.6; }
+      }
+      const C = 2 * zeta * Math.sqrt(K);
       j.vx += (-K * (j.x - tg[0]) - C * j.vx) * dt; j.x += j.vx * dt;
       j.vy += (-K * (j.y - tg[1]) - C * j.vy) * dt; j.y += j.vy * dt;
       j.vz += (-K * (j.z - tg[2]) - C * j.vz) * dt; j.z += j.vz * dt;
@@ -1394,7 +1479,8 @@ export function makeCRT(THREE, opts = {}) {
   return {
     group, update, setFace, lookAt, hover, poke, glass: screen,
     setPose, setTumble, setScreen, setFacing, setScale,
-    setThrust, setSuitTint, setPointer, setIntent, setRim, land, landPhase, setGrounded, setBulk, setHeadTrack,
+    setThrust, setSuitTint, setPointer, setIntent, setRim, land, landPhase, landingY, landStartY, setGrounded, setBulk, setHeadTrack,
     joints: J, full,
+    set onContact(fn) { onContact = fn; }, get onContact() { return onContact; },
   };
 }

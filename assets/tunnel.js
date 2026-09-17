@@ -26,13 +26,14 @@
      tunnel.setLandingPoint(x, z)    // where the figure comes to rest (impact() sets it to camera z - 40); the flat patch and hills key off it
      tunnel.setPlane('bliss' | 'grid')   // what setLook('landing') resolves to (default bliss); setLook('landing-grid') forces the wire floor
      tunnel.matrixExit(secs)         // glyph rain persists over the landing and drains away over secs, chromatic split at the start
-     tunnel.plungeStage(name, cutSecs)   // cut list: prism | prism-tri | inverse | glyphs | collapse (also cubes | lattice | stairs | rings | shards | cubes-wave); hard cut by default
+     tunnel.plungeStage(name, cutSecs)   // cut list: cage-dark | vortex | prism-tri | lattice-green | inverse | glyphs | collapse (also prism | cubes | lattice | stairs | rings | shards | cubes-wave)
      tunnel.deal()                   // plunge: morph every solid to the next shape (180 ms) and snap the colour pair from the deck
      tunnel.impact(strength)         // landing: floor ring 0 -> 90 units over 700 ms, grid brightens with a damped bounce
      tunnel.landingY()               // -12, the floor height
      tunnel.setBend({ax, lx, ay, ly, py}, easeSecs)   // curve the corridor: offset(z) = (ax sin(z/lx), ay sin(z/ly + py)); null straightens over 2 s
      tunnel.curve(z) -> {x, y}      // corridor centre offset at z; place the camera and page objects on it
      tunnel.tangent(z) -> {x, y, z} // unit direction of travel along the curve at z
+     tunnel.release();               // allow the next phase-mode setLook (null/cage/tessellation/inverse) while an authored look is active
      tunnel.setLook(name, fadeSecs); // override the phase blend: 'cage' | 'tessellation' | 'starfield' | 'nebula' | 'wiregrid' | 'blackout'; null = back to phase
      tunnel.dispose();
 
@@ -217,7 +218,16 @@ const PLUNGE_SMEAR_OFF = 0.6;
 const PLUNGE_STREAK_MAX = 3;             // z stretch cap in the plunge so solids still read as solids at speed
 const PLUNGE_OUTER = 0.7;                // outer 30% starts at this fraction of the shell radius
 const PLUNGE_CAP = 1000;                 // baked solids capacity per shape set (plus smear copies)
-const PLUNGE_STAGES = ['prism', 'prism-tri', 'inverse', 'glyphs', 'collapse', 'cubes', 'lattice', 'stairs', 'rings', 'shards', 'cubes-wave'];   // cut list uses the first five; the rest stay callable
+const PLUNGE_STAGES = ['cage-dark', 'vortex', 'prism-tri', 'lattice-green', 'inverse', 'glyphs', 'collapse', 'prism', 'cubes', 'lattice', 'stairs', 'rings', 'shards', 'cubes-wave'];   // cut list uses the first seven; the rest stay callable
+const SMEAR = {copies: 4, gain: 0.3, base: 6, perV: 14, max: 60};        // motion-blur copies trail along z by base + perV * v units (capped), dimmed by gain
+const BEAM = {thick: [0.6, 1.4], split: 0.3, missing: 0.1, tilt: 0.06, tiltDeg: [5, 10], emis: 0.5, capEmis: 1.6, capLen: 2.2, base: 0x2a2e36, rough: 0.85, far: [300, 820], copyAlpha: 0.35};
+const ROOM_LIGHT = {intensity: 16000, dist: 12};             // soft light riding with the camera so near beams shade
+const ROOM_CAGE = {half: 92, pitch: 36, depth: 1100, keep: 0.75, streaks: 60, roll: 6 * Math.PI / 180, helix: 9, tint: [0x66f0ff, 0xff5a2a], tintK: 0.45, capFrac: 0.14, haze: 0xff7a3a, hazeOp: 0.09, hazeN: 5, base: 0x4a3a2e, thick: [1.0, 2.0]};
+const ROOM_VORTEX = {rOut: 88, rIn: 44, rCore: 12, pitch: 30, depth: 1000, nOut: 16, nIn: 12, twist: 0.0045, rot: 25 * Math.PI / 180, jitter: 10, rJit: 12,
+  tint: [0xff7fc0, 0x9fc4ff], capFrac: 0.35, coreDist: 520, coreSize: 30, coreOp: 0.45, knot: {rings: 6, r: [5, 14], segs: 12}, frags: 100, fragSpeed: [60, 220], fragLen: [6, 26], haze: 0xff8fd0, hazeOp: 0.08};
+const ROOM_LATTICE = {pitch: 40, half: 200, depth: 680, keep: 0.75, jitter: 0.15, core: 34, tint: [0x9ad24a, 0xf2ff4a], capFrac: 0.22, ghosts: 4, ghostCol: 0xa8ff8a, ghostOp: 0.18, haze: 0x7fe86a, hazeOp: 0.10, hazeN: 5};
+const HAZE = {n: 4, size: [280, 480], r: [70, 130], drift: 14};
+const HALO = {dist: 600, size: 520, width: 0.012, op: 0.11, split: 0.035};
 const PRISM = {cell: 18, perRing: 32, depth: 1100, ahead: 80, cube: 7, half: 84, triR: 136, fill: 0.05, fillNear: [60, 200], fadeZ: [160, 520], lineOp: 0.8, twist: 0.012, streakMax: 3, morph: 0.6, flash: 0.22, maxK: 0.9};
 const PRISM_RINGS = Math.ceil(PRISM.depth / PRISM.cell) + 2;
 const PLUNGE_HUGE_FRAC = 0.06;           // solids that are huge (60+ units) and ride the outer shell
@@ -345,6 +355,7 @@ const PAT_VERT = /* glsl */`
     vec4 wp = modelMatrix * vec4(position, 1.0);
     wp.xy += bendOffset(wp.z);
     vec4 mv = viewMatrix * wp;
+    if (abs(mv.z) < 0.05) mv.z = -0.05;
     float dist = -mv.z;
     float f = uFog * dist; float fog = exp(-f * f);
     float b;
@@ -474,7 +485,17 @@ function sunDiscTexture(THREE, size) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+function haloTexture(THREE, size, width) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+  const r = size * 0.46, w = Math.max(1.5, size * width);
+  g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = w; g.beginPath(); g.arc(size / 2, size / 2, r, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = w * 3; g.beginPath(); g.arc(size / 2, size / 2, r, 0, Math.PI * 2); g.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 /* ---------- module ---------- */
+export const instances = [];   // every makeTunnel result, for harness inspection
+
 export function makeTunnel(THREE, opts = {}) {
   const group = new THREE.Group();
   group.name = 'tunnel';
@@ -882,7 +903,7 @@ export function makeTunnel(THREE, opts = {}) {
     pat.cur = {pattern: ((i % patterns.length) + patterns.length) % patterns.length, pair: pat.cur.pair};
     pat.fading = false; pat.age = 0; if (holdSecs != null) pat.hold = holdSecs;
   }
-  function setBeatMorph(enabled, minGapSecs) { pat.beatMorph = !!enabled; if (minGapSecs != null) pat.beatGap = Math.max(0, minGapSecs); }
+  function setBeatMorph(enabled, minGapSecs) { if (enabled) releaseAt = state.t; pat.beatMorph = !!enabled; if (minGapSecs != null) pat.beatGap = Math.max(0, minGapSecs); }
   function setDim(d) { pat.dim = clamp01(d); }
   const pulses = [];                     // {z0, age}
 
@@ -1153,6 +1174,8 @@ export function makeTunnel(THREE, opts = {}) {
   const pInkSkip = new Uint8Array(PLUNGE_N); for (let i = 0; i < PLUNGE_N; i++) pInkSkip[i] = hash(i, 174) > PLUNGE_INK_FRAC ? 1 : 0;
   const pHuge = new Uint8Array(PLUNGE_N); for (let i = 0; i < PLUNGE_N; i++) pHuge[i] = hash(i, 173) < PLUNGE_HUGE_FRAC ? 1 : 0;
   function plungeStage(name, cutSecs) {
+    callLog.push({f: 'plungeStage', name, cut: cutSecs, t: +state.t.toFixed(2), look: lookCtl.name});
+    if (name != null && lookCtl.name !== 'plunge') { lookCtl.name = 'plunge'; lookCtl.fade = 0.12; state.warm = 2; }   // a stage cut always means the plunge look
     if (name != null && !PLUNGE_STAGES.includes(name)) throw new Error('unknown plunge stage ' + name);
     plunge.stage = name; plunge.stageT0 = state.t; plunge.cut = cutSecs == null ? 0 : Math.max(0, cutSecs);
   }
@@ -1216,6 +1239,177 @@ export function makeTunnel(THREE, opts = {}) {
     out[0] = sq[0] + (tr[0] - sq[0]) * m; out[1] = sq[1] + (tr[1] - sq[1]) * m;
   }
   const CUBE_E = SOLID_DEFS[0].e, CUBE_V = SOLID_DEFS[0].v, _pp = [0, 0];
+
+  /* ---- lusion rooms: beams as instanced boxes (dark rough base, per-instance emissive tint, bright end caps), broken and tilted,
+     drawn SMEAR.copies times trailing along z (motion blur), plus haze planes, a chromatic halo, a camera light and per-room extras ---- */
+  const beamGeo = new THREE.BoxGeometry(1, 1, 1); disposables.push(beamGeo);
+  const haloGeo = new THREE.PlaneGeometry(1, 1); disposables.push(haloGeo);
+  // shared vertex transform for everything in a room: instance, roll/twist, helical bend, z-trailing copy, corridor bend, far fade
+  const ROOM_VERT_DECL = 'attribute float aCopy; uniform float uCamZ, uSmearZ, uGain, uRot, uTwist, uHelix, uFar0, uFar1; varying float vK; varying float vCopy;\n';
+  const ROOM_PROJECT = `
+      vec4 mvPosition = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+      #endif
+      vec4 bentWorld = modelMatrix * mvPosition;
+      float dz = uCamZ - bentWorld.z;
+      float ang = uRot + uTwist * dz; float c = cos(ang), s = sin(ang);
+      bentWorld.xy = vec2(bentWorld.x * c - bentWorld.y * s, bentWorld.x * s + bentWorld.y * c);
+      bentWorld.xy += vec2(sin(dz * 0.006), cos(dz * 0.006)) * uHelix;
+      bentWorld.z += aCopy * uSmearZ;
+      bentWorld.xy += bendOffset(bentWorld.z);
+      vK = (aCopy < 0.5 ? 1.0 : uGain) * (1.0 - smoothstep(uFar0, uFar1, dz));
+      vCopy = aCopy;
+      mvPosition = viewMatrix * bentWorld;
+      if (abs(mvPosition.z) < 0.05) mvPosition.z = -0.05;
+      gl_Position = projectionMatrix * mvPosition;`;
+  // one shared uniform set for every room program (assigned at compile time, so values set before the first render still apply)
+  const roomU = {}; for (const [k, v] of Object.entries({uCamZ: 0, uSmearZ: 0, uGain: SMEAR.gain, uRot: 0, uTwist: 0, uHelix: 0, uFar0: BEAM.far[0], uFar1: BEAM.far[1], uEmis: BEAM.emis, uTime: 0})) roomU[k] = {value: v};
+  function roomUniforms(sh) { sh.uniforms.uBend = bendU.uBend; sh.uniforms.uBendPy = bendU.uBendPy; for (const k in roomU) sh.uniforms[k] = roomU[k]; }
+  const roomShaders = [];
+  function beamMaterial(base) {   // dark rough beams; instanceColor is the emissive tint, not the diffuse
+    const m = new THREE.MeshStandardMaterial({color: base == null ? BEAM.base : base, roughness: BEAM.rough, metalness: 0.15, transparent: true, depthWrite: true});
+    m.onBeforeCompile = sh => {
+      roomUniforms(sh); roomShaders.push(sh);
+      sh.vertexShader = BEND_GLSL + ROOM_VERT_DECL + sh.vertexShader.replace('#include <project_vertex>', ROOM_PROJECT);
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uEmis, uTime; varying float vK; varying float vCopy;\nvoid main() {')
+        .replace('#include <color_fragment>', '')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n #ifdef USE_COLOR\n totalEmissiveRadiance += vColor * uEmis;\n #endif')
+        .replace('#include <fog_fragment>', 'gl_FragColor.rgb *= vK; gl_FragColor.a *= (vCopy < 0.5 ? 1.0 : ' + BEAM.copyAlpha.toFixed(2) + ');\n#include <fog_fragment>');
+    };
+    m.customProgramCacheKey = () => 'roombeam'; disposables.push(m); return m;
+  }
+  function capMaterial() {    // hot emissive end caps and glints, additive
+    const m = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false});
+    m.onBeforeCompile = sh => {
+      roomUniforms(sh); roomShaders.push(sh);
+      sh.vertexShader = BEND_GLSL + ROOM_VERT_DECL + sh.vertexShader.replace('#include <project_vertex>', ROOM_PROJECT);
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uTime; varying float vK; varying float vCopy;\nvoid main() {')
+        .replace('#include <fog_fragment>', 'gl_FragColor.rgb *= vK * (vCopy < 0.5 ? 1.0 : 0.5);\n#include <fog_fragment>');
+    };
+    m.customProgramCacheKey = () => 'roomcap'; disposables.push(m); return m;
+  }
+  const _ba = new THREE.Vector3(), _bb = new THREE.Vector3(), _bd = new THREE.Vector3(), _bq = new THREE.Quaternion(), _bup = new THREE.Vector3(0, 1, 0), _bm = new THREE.Matrix4(), _bs = new THREE.Vector3();
+  function beamMatrix(a, b, thick, tiltRad, seed, out) {
+    _ba.set(a[0], a[1], a[2]); _bb.set(b[0], b[1], b[2]); _bd.subVectors(_bb, _ba); const len = _bd.length(); _bd.normalize();
+    _bq.setFromUnitVectors(_bup, _bd);
+    if (tiltRad) { const ax = new THREE.Vector3(hash(seed, 281) - 0.5, hash(seed, 282) - 0.5, hash(seed, 283) - 0.5).normalize(); _bq.multiply(new THREE.Quaternion().setFromAxisAngle(ax, tiltRad)); }
+    _bm.compose(_ba.add(_bb).multiplyScalar(0.5), _bq, _bs.set(thick, len, thick)); return _bm.toArray(out.arr, out.off);
+  }
+  // build a room from a segment list: [{a, b, tint(0|1), k(brightness), cap(bool)}], applying breakage, tilt and copies
+  function buildRoom(segs, tints, capFrac, period, opts) {
+    const keep = opts.keep == null ? 1 : opts.keep;
+    const beams = [], caps = [];
+    segs.forEach((sg, i) => {
+      if (hash(i, 291) > keep) return;                          // sparser
+      if (hash(i, 292) < BEAM.missing) return;                  // missing beams
+      const th = opts.thick || BEAM.thick, thick = th[0] + hash(i, 293) * (th[1] - th[0]);
+      const tilt = hash(i, 294) < BEAM.tilt ? (BEAM.tiltDeg[0] + hash(i, 295) * (BEAM.tiltDeg[1] - BEAM.tiltDeg[0])) * Math.PI / 180 : 0;
+      const pieces = [];
+      if (hash(i, 296) < BEAM.split) {                          // broken into 2 or 3 pieces with gaps and slight offsets
+        const n = 2 + (hash(i, 297) < 0.4 ? 1 : 0), d = [sg.b[0] - sg.a[0], sg.b[1] - sg.a[1], sg.b[2] - sg.a[2]];
+        for (let q = 0; q < n; q++) {
+          const t0 = q / n + 0.06, t1 = (q + 1) / n - 0.06, off = [(hash(i * 3 + q, 298) - 0.5) * 1.6, (hash(i * 3 + q, 299) - 0.5) * 1.6, 0];
+          pieces.push([[sg.a[0] + d[0] * t0 + off[0], sg.a[1] + d[1] * t0 + off[1], sg.a[2] + d[2] * t0], [sg.a[0] + d[0] * t1 + off[0], sg.a[1] + d[1] * t1 + off[1], sg.a[2] + d[2] * t1]]);
+        }
+      } else pieces.push([sg.a, sg.b]);
+      for (const [a, b] of pieces) beams.push({a, b, thick, tilt, seed: i, tint: sg.tint, k: sg.k});
+      if (hash(i, 300) < capFrac) { const end = hash(i, 301) < 0.5 ? sg.a : sg.b; caps.push({p: end, thick: thick * 1.9, tint: sg.tint, seed: i}); }
+    });
+    const nB = beams.length, nC = caps.length, C = SMEAR.copies;
+    const bm = new THREE.InstancedMesh(beamGeo, beamMaterial(opts.base), nB * C);
+    bm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(nB * C * 3), 3);
+    const bCopy = new Float32Array(nB * C);
+    const tc = tints.map(h => new THREE.Color(h));
+    const out = {arr: bm.instanceMatrix.array, off: 0};
+    for (let c = 0; c < C; c++) for (let i = 0; i < nB; i++) {
+      const b = beams[i], idx = c * nB + i; out.off = idx * 16; beamMatrix(b.a, b.b, b.thick, b.tilt, b.seed, out);
+      const col = tc[b.tint], tk = b.k * (opts.tintK == null ? 1 : opts.tintK); bm.instanceColor.array[idx * 3] = col.r * tk; bm.instanceColor.array[idx * 3 + 1] = col.g * tk; bm.instanceColor.array[idx * 3 + 2] = col.b * tk; bCopy[idx] = c;
+    }
+    bm.geometry = beamGeo.clone(); bm.geometry.setAttribute('aCopy', new THREE.InstancedBufferAttribute(bCopy, 1)); disposables.push(bm.geometry);
+    bm.frustumCulled = false; bm.visible = false; bm.renderOrder = 1; plungeGroup.add(bm);
+    const cm = new THREE.InstancedMesh(beamGeo, capMaterial(), Math.max(1, nC * C));
+    cm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, nC * C) * 3), 3);
+    const cCopy = new Float32Array(Math.max(1, nC * C));
+    for (let c = 0; c < C; c++) for (let i = 0; i < nC; i++) {
+      const cp = caps[i], idx = c * nC + i; _bq.identity(); _bm.compose(_ba.set(cp.p[0], cp.p[1], cp.p[2]), _bq, _bs.set(cp.thick, cp.thick, BEAM.capLen)); _bm.toArray(cm.instanceMatrix.array, idx * 16);
+      const col = tc[cp.tint]; cm.instanceColor.array[idx * 3] = col.r * BEAM.capEmis; cm.instanceColor.array[idx * 3 + 1] = col.g * BEAM.capEmis; cm.instanceColor.array[idx * 3 + 2] = col.b * BEAM.capEmis; cCopy[idx] = c;
+    }
+    cm.geometry = beamGeo.clone(); cm.geometry.setAttribute('aCopy', new THREE.InstancedBufferAttribute(cCopy, 1)); disposables.push(cm.geometry);
+    cm.count = nC * C; cm.frustumCulled = false; cm.visible = false; cm.renderOrder = 2; plungeGroup.add(cm);
+    // haze planes: large soft additive quads around the axis, tinted in the room colour
+    const hn = opts.hazeN || HAZE.n;
+    const hz = new THREE.InstancedMesh(haloGeo, new THREE.MeshBasicMaterial({map: memGlowTex, color: opts.haze, transparent: true, opacity: opts.hazeOp, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false}), hn);
+    disposables.push(hz.material); hz.frustumCulled = false; hz.visible = false; hz.renderOrder = 3; plungeGroup.add(hz);
+    return {beams: bm, caps: cm, haze: hz, hazeN: hn, period, opts, nB, nC, mats: [bm.material, cm.material]};
+  }
+  const segList = (P, C) => { const o = []; for (let i = 0; i < P.length; i += 6) o.push({a: [P[i], P[i + 1], P[i + 2]], b: [P[i + 3], P[i + 4], P[i + 5]], tint: C[i] > 0.5 ? 1 : 0, k: C[i + 1]}); return o; };
+  const segPushT = (P, C, a, b, tint, k) => { P.push(a[0], a[1], a[2], b[0], b[1], b[2]); C.push(tint, k, 0, tint, k, 0); };
+  // cage-dark: square corridor of girders (corner beams, frames every pitch, mid-wall posts, a few long streak beams)
+  const cageRoom = (() => {
+    const P = [], C = [], H = ROOM_CAGE.half, L = ROOM_CAGE.depth, corners = [[-H, -H], [H, -H], [H, H], [-H, H]];
+    for (const [x, y] of corners) for (let z = 0; z < L; z += 40) segPushT(P, C, [x, y, -z], [x, y, -z - 40], hash(x + y + z, 311) < 0.65 ? 0 : 1, 0.9);
+    for (let z = 0; z < L; z += ROOM_CAGE.pitch) for (let k = 0; k < 4; k++) { const a = corners[k], b = corners[(k + 1) % 4];
+      segPushT(P, C, [a[0], a[1], -z], [b[0], b[1], -z], hash(z + k, 312) < 0.65 ? 0 : 1, 0.7);
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2; segPushT(P, C, [mx, my, -z], [mx, my, -z - ROOM_CAGE.pitch], 0, 0.55); }
+    for (let i = 0; i < ROOM_CAGE.streaks; i++) { const k = Math.floor(hash(i, 231) * 4), a = corners[k], b = corners[(k + 1) % 4], t = hash(i, 232), z0 = -hash(i, 233) * L, len = 40 + hash(i, 234) * 120;
+      segPushT(P, C, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, z0], [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, z0 - len], hash(i, 235) < 0.6 ? 0 : 1, 0.9); }
+    return buildRoom(segList(P, C), ROOM_CAGE.tint, ROOM_CAGE.capFrac, ROOM_CAGE.pitch, {keep: ROOM_CAGE.keep, haze: ROOM_CAGE.haze, hazeOp: ROOM_CAGE.hazeOp, hazeN: ROOM_CAGE.hazeN, base: ROOM_CAGE.base, thick: ROOM_CAGE.thick, tintK: ROOM_CAGE.tintK});
+  })();
+  // vortex: rings and spokes with jitter; twist and rotation in the shader; magenta / steel alternating per ring
+  const vortexRoom = (() => {
+    const P = [], C = [], R = ROOM_VORTEX;
+    const ring = (n, r, z, off) => Array.from({length: n}, (_, i) => { const rr = r + (hash(i * 13 + z, 271) - 0.5) * R.jitter + (hash(z, 273) - 0.5) * R.rJit; return [rr * Math.cos(off + i * Math.PI * 2 / n), rr * Math.sin(off + i * Math.PI * 2 / n), z + (hash(i * 7 + z, 272) - 0.5) * R.jitter]; });
+    for (let j = 0, z = 0; -z < R.depth; z -= R.pitch, j++) {
+      const t = j & 1, o = j * 0.19, outer = ring(R.nOut, R.rOut, z, o), inner = ring(R.nIn, R.rIn, z, o + 0.3), core = ring(R.nIn, R.rCore, z, o + 0.3);
+      for (let i = 0; i < R.nOut; i++) { segPushT(P, C, outer[i], outer[(i + 1) % R.nOut], t, 0.9); if (i % 2 === 0) segPushT(P, C, outer[i], inner[Math.floor(i * R.nIn / R.nOut) % R.nIn], t, 0.75); }
+      for (let i = 0; i < R.nIn; i++) { segPushT(P, C, inner[i], inner[(i + 1) % R.nIn], t, 0.85); if (i % 3 === 0) segPushT(P, C, inner[i], core[i], t, 0.6); }
+      if (t) for (let i = 0; i < R.nOut; i += 4) segPushT(P, C, outer[i], [outer[i][0] * 0.97, outer[i][1] * 0.97, z - R.pitch], t, 0.55);
+    }
+    return buildRoom(segList(P, C), ROOM_VORTEX.tint, ROOM_VORTEX.capFrac, ROOM_VORTEX.pitch * 2, {haze: ROOM_VORTEX.haze, hazeOp: ROOM_VORTEX.hazeOp});
+  })();
+  // lattice-green: cubic scaffold with jittered nodes, double girders and braces, 25% dropped
+  const latticeRoom = (() => {
+    const P = [], C = [], R = ROOM_LATTICE, Pp = R.pitch, H = R.half, h2 = Pp / 2, J = Pp * R.jitter;
+    const node = (x, y, z) => [x + (hash(x * 7 + y * 13 + z * 3, 321) - 0.5) * 2 * J, y + (hash(x * 5 + y * 11 + z * 7, 322) - 0.5) * 2 * J, -z + (hash(x * 3 + y * 17 + z * 5, 323) - 0.5) * 2 * J];
+    for (let z = 0; z < R.depth; z += Pp) for (let x = -H + h2; x <= H; x += Pp) for (let y = -H + h2; y <= H; y += Pp) {
+      if (Math.abs(x) < R.core && Math.abs(y) < R.core) continue;   // clear core: nothing passes through the lens
+      const t = hash(x + y * 3 + z, 324) < 0.8 ? 0 : 1, k = 0.55 + hash(x * 7 + y * 13 + z, 241) * 0.45, n0 = node(x, y, z);
+      if (x < H - Pp) segPushT(P, C, n0, node(x + Pp, y, z), t, k);
+      if (y < H - Pp) segPushT(P, C, n0, node(x, y + Pp, z), t, k);
+      segPushT(P, C, n0, node(x, y, z + Pp), t, k);
+      if (x < H - Pp && y < H - Pp && hash(x + y * 3 + z * 5, 242) < 0.5) segPushT(P, C, n0, node(x + Pp, y + Pp, z), t, k * 0.7);
+      if (y < H - Pp && hash(x * 3 + y + z * 7, 244) < 0.35) segPushT(P, C, n0, node(x, y + Pp, z + Pp), t, k * 0.6);
+    }
+    return buildRoom(segList(P, C), ROOM_LATTICE.tint, ROOM_LATTICE.capFrac, Pp, {keep: ROOM_LATTICE.keep, haze: ROOM_LATTICE.haze, hazeOp: ROOM_LATTICE.hazeOp, hazeN: ROOM_LATTICE.hazeN});
+  })();
+  const rooms = [cageRoom, vortexRoom, latticeRoom];
+  // always visible while the plunge is: toggling a light's visibility changes the light count and makes three recompile every program (a 200 ms hitch)
+  const roomLight = new THREE.PointLight(0xffffff, 0, 0, 2); plungeGroup.add(roomLight);
+  // halo: thin ring at the vanishing point, three copies split in R/G/B
+  const haloTex = haloTexture(THREE, 512, HALO.width); disposables.push(haloTex);
+  const haloMat = new THREE.MeshBasicMaterial({map: haloTex, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false});
+  disposables.push(haloMat);
+  const halo = new THREE.InstancedMesh(haloGeo, haloMat, 3); halo.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(9), 3); halo.frustumCulled = false; halo.visible = false; halo.renderOrder = 8; plungeGroup.add(halo);
+  // vortex extras: a small pink-white knot of twisted rings at the core, a capped core sprite, and torn fragments flying out of the centre
+  const coreMat = new THREE.MeshBasicMaterial({map: memGlowTex, color: 0xffd6ee, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false, toneMapped: false});
+  disposables.push(coreMat);
+  const vortexCore = new THREE.Mesh(haloGeo, coreMat); vortexCore.frustumCulled = false; vortexCore.visible = false; vortexCore.renderOrder = 7; plungeGroup.add(vortexCore);
+  const knotGeo = (() => { const K = ROOM_VORTEX.knot, p = []; for (let r = 0; r < K.rings; r++) { const rad = K.r[0] + (K.r[1] - K.r[0]) * r / (K.rings - 1), tilt = r * 0.5;
+      for (let i = 0; i < K.segs; i++) { const a0 = i / K.segs * Math.PI * 2, a1 = (i + 1) / K.segs * Math.PI * 2;
+        const pt = a => [rad * Math.cos(a), rad * Math.sin(a) * Math.cos(tilt), rad * Math.sin(a) * Math.sin(tilt) + r * 1.5]; const A = pt(a0), B = pt(a1); p.push(...A, ...B); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); disposables.push(g); return g; })();
+  const knotMat = bendable(new THREE.LineBasicMaterial({color: 0xffc4e6, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false})); disposables.push(knotMat);
+  const knot = new THREE.LineSegments(knotGeo, knotMat); knot.frustumCulled = false; knot.visible = false; knot.renderOrder = 7; plungeGroup.add(knot);
+  const fragsMesh = bakedLines(ROOM_VORTEX.frags * 2);
+  const fr_a = new Float32Array(ROOM_VORTEX.frags), fr_v = new Float32Array(ROOM_VORTEX.frags), fr_l = new Float32Array(ROOM_VORTEX.frags), fr_t = new Float32Array(ROOM_VORTEX.frags), fr_z = new Float32Array(ROOM_VORTEX.frags);
+  for (let i = 0; i < ROOM_VORTEX.frags; i++) { fr_a[i] = hash(i, 261) * 6.28; fr_v[i] = ROOM_VORTEX.fragSpeed[0] + hash(i, 262) * (ROOM_VORTEX.fragSpeed[1] - ROOM_VORTEX.fragSpeed[0]); fr_l[i] = ROOM_VORTEX.fragLen[0] + hash(i, 263) * (ROOM_VORTEX.fragLen[1] - ROOM_VORTEX.fragLen[0]); fr_t[i] = hash(i, 264) * 3; fr_z[i] = 120 + hash(i, 265) * 380; }
+  // lattice-green extras: ghost figures, translucent capsules drifting in the scaffold
+  const ghostGeo = new THREE.CapsuleGeometry(4, 12, 4, 10); disposables.push(ghostGeo);
+  const ghostMat = bendable(new THREE.MeshBasicMaterial({color: ROOM_LATTICE.ghostCol, transparent: true, opacity: ROOM_LATTICE.ghostOp, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false}));
+  disposables.push(ghostMat);
+  const ghosts = new THREE.InstancedMesh(ghostGeo, ghostMat, ROOM_LATTICE.ghosts); ghosts.instanceMatrix.setUsage(THREE.DynamicDrawUsage); ghosts.frustumCulled = false; ghosts.visible = false; plungeGroup.add(ghosts);
+  const ROOM_OF = {'cage-dark': cageRoom, 'vortex': vortexRoom, 'lattice-green': latticeRoom};
 
   function bakeSolid(set, off, cx, cy, cz, size, e, col, stretchZ) {
     const arr = set.arr, carr = set.col, def = set.def; let o = off;
@@ -1470,7 +1664,18 @@ export function makeTunnel(THREE, opts = {}) {
 
   const planeCtl = {plane: 'grid'};
   function setPlane(name) { planeCtl.plane = name === 'grid' || name === 'landing-grid' ? 'grid' : 'bliss'; }
+  const callLog = [];
+  // Authored looks (memory, plunge, landing, bliss) are sticky: a phase-mode request (null, cage, tessellation, inverse) arriving while one is
+  // active is ignored unless the page has just signalled it is leaving Act 2 (setBeatMorph(true) within RELEASE_WINDOW, as leaveAct2 does) or
+  // called release(). The host's Act 1 opening-look timers fire on boot time and would otherwise cut into the fall under #act2=0.
+  const AUTHORED = new Set(['memory', 'plunge', 'landing', 'bliss']), PHASE_MODE = new Set([null, 'cage', 'tessellation', 'inverse']);
+  const RELEASE_WINDOW = 0.6;
+  let releaseAt = -99, released = false;
+  function release() { released = true; }
   function setLook(name, fadeSecs) {
+    callLog.push({f: 'setLook', name, fade: fadeSecs, t: +state.t.toFixed(2), stage: plunge.stage});
+    if (AUTHORED.has(lookCtl.name) && PHASE_MODE.has(name) && !released && state.t - releaseAt > RELEASE_WINDOW) { callLog.push({f: 'setLook-ignored', name, t: +state.t.toFixed(2)}); return; }
+    released = false;
     if (name === 'landing') name = planeCtl.plane === 'bliss' ? 'bliss' : 'landing';
     else if (name === 'landing-grid') name = 'landing';
     if (name === 'bliss') { blissBase.z = state.camZ; if (!landing.set) { landing.x = 0; landing.z = state.camZ - 35; hillCentre.dirty = true; } }
@@ -1805,7 +2010,8 @@ export function makeTunnel(THREE, opts = {}) {
       const spin = reduced ? 0 : 1;
       const rOuter = PLUNGE_R[0] + (PLUNGE_R[1] - PLUNGE_R[0]) * PLUNGE_OUTER;
       const collapse = stage === 'collapse' ? smooth(0, PLUNGE_COLLAPSE_SECS, st) : 0;   // 0 -> 1 over the stage
-      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings' && stage !== 'glyphs' && stage !== 'prism' && stage !== 'prism-tri';
+      const roomMesh = ROOM_OF[stage] || null;
+      const useField = stage !== 'lattice' && stage !== 'stairs' && stage !== 'rings' && stage !== 'glyphs' && stage !== 'prism' && stage !== 'prism-tri' && !roomMesh;
       const offs = plungeSets.map(() => 0);
       const shapeIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.shape, prevIdx = stage === 'shards' ? PLUNGE_SHARD_SET : plunge.prev;
       if (useField) for (let i = 0; i < PLUNGE_N; i++) {
@@ -1900,6 +2106,56 @@ export function makeTunnel(THREE, opts = {}) {
         ringsMesh.geometry.attributes.position.needsUpdate = true; ringsMesh.geometry.attributes.color.needsUpdate = true;
         ringsMesh.material.opacity = plungeW; ringsMesh.material.blending = inv ? THREE.NormalBlending : THREE.AdditiveBlending;
       }
+      // lusion rooms
+      const room = ROOM_OF[stage] || null;
+      for (const r of rooms) { const on = r === room; r.beams.visible = on; r.caps.visible = on; r.haze.visible = on; }
+      halo.visible = !!room; if (!room) roomLight.intensity = 0; vortexCore.visible = stage === 'vortex'; knot.visible = stage === 'vortex'; fragsMesh.visible = stage === 'vortex'; ghosts.visible = stage === 'lattice-green';
+      if (room) {
+        const per = room.period, snap = Math.ceil((camZ + BEHIND) / per) * per;
+        room.beams.position.z = snap; room.caps.position.z = snap;
+        const smearZ = reduced ? 0 : Math.min(SMEAR.max, SMEAR.base + SMEAR.perV * v);
+        const rot = stage === 'vortex' ? state.t * ROOM_VORTEX.rot : (stage === 'cage-dark' ? state.t * ROOM_CAGE.roll : 0);
+        { const u = roomU; u.uCamZ.value = camZ; u.uSmearZ.value = smearZ; u.uRot.value = reduced ? 0 : rot; u.uTime.value = state.t;
+          u.uTwist.value = stage === 'vortex' ? ROOM_VORTEX.twist : 0; u.uHelix.value = stage === 'cage-dark' ? ROOM_CAGE.helix : 0; }
+        for (const m of room.mats) m.opacity = plungeW * cutK;
+        { const c = curve(camZ); roomLight.position.set(c.x, c.y, camZ - ROOM_LIGHT.dist); roomLight.intensity = ROOM_LIGHT.intensity * plungeW; }
+        // haze planes ride with the camera, drifting slowly
+        const hArr2 = room.haze.instanceMatrix.array;
+        for (let i = 0; i < room.hazeN; i++) {
+          const a = i * 2.4 + (reduced ? 0 : state.t * 0.07), r = HAZE.r[0] + (HAZE.r[1] - HAZE.r[0]) * hash(i, 331), sz = HAZE.size[0] + (HAZE.size[1] - HAZE.size[0]) * hash(i, 332);
+          const zz = camZ - 120 - hash(i, 333) * 320, c = curve(zz), dr = reduced ? 0 : Math.sin(state.t * 0.13 + i) * HAZE.drift;
+          _o.position.set(c.x + (r + dr) * Math.cos(a), c.y + (r + dr) * Math.sin(a), zz); _o.quaternion.identity(); _o.scale.set(sz, sz, 1); _o.updateMatrix(); _o.matrix.toArray(hArr2, i * 16);
+        }
+        room.haze.count = room.hazeN; room.haze.instanceMatrix.needsUpdate = true; room.haze.material.opacity = room.opts.hazeOp * plungeW;
+        // halo: R/G/B split ring at the vanishing point; green-tinted in the lattice room
+        const hz = camZ - HALO.dist, hc = curve(hz), hArr = halo.instanceMatrix.array, hCol = halo.instanceColor.array;
+        for (let i = 0; i < 3; i++) { const sc2 = HALO.size * (1 + (i - 1) * HALO.split); hArr.fill(0, i * 16, i * 16 + 16); hArr[i * 16] = sc2; hArr[i * 16 + 5] = sc2; hArr[i * 16 + 10] = 1; hArr[i * 16 + 15] = 1; hArr[i * 16 + 12] = hc.x; hArr[i * 16 + 13] = hc.y; hArr[i * 16 + 14] = hz;
+          const g = stage === 'lattice-green' ? [0.35, 1.0, 0.45][i] : 1; hCol[i * 3] = (i === 0 ? 1 : 0.05) * g * HALO.op; hCol[i * 3 + 1] = (i === 1 ? 1 : 0.05) * g * HALO.op; hCol[i * 3 + 2] = (i === 2 ? 1 : 0.05) * g * HALO.op; }
+        halo.count = 3; halo.instanceMatrix.needsUpdate = true; halo.instanceColor.needsUpdate = true; haloMat.opacity = plungeW;
+        if (stage === 'vortex') {
+          const cz = camZ - ROOM_VORTEX.coreDist, cc = curve(cz);
+          vortexCore.position.set(cc.x, cc.y, cz); vortexCore.scale.set(ROOM_VORTEX.coreSize, ROOM_VORTEX.coreSize, 1); coreMat.opacity = ROOM_VORTEX.coreOp * plungeW * cutK;
+          knot.position.set(cc.x, cc.y, cz + 6); knot.rotation.set(state.t * 0.9, state.t * 1.3, state.t * 0.5); knotMat.opacity = 0.9 * plungeW;
+          const arr = fragsMesh.geometry.attributes.position.array, carr = fragsMesh.geometry.attributes.color.array; let o = 0;
+          const ca = tmpA.setHex(ROOM_VORTEX.tint[0]), cb = tmpB.setHex(ROOM_VORTEX.tint[1]);
+          for (let i = 0; i < ROOM_VORTEX.frags; i++) {
+            fr_t[i] += dt; const r = 6 + fr_v[i] * fr_t[i]; if (r > 140) { fr_t[i] = 0; fr_a[i] = hash(i + Math.floor(state.t * 7), 266) * 6.28; }
+            const a = fr_a[i] + state.t * ROOM_VORTEX.rot, dx = Math.cos(a), dy = Math.sin(a), z = camZ - fr_z[i], c = i & 1 ? ca : cb, k = (1 - r / 140) * 1.4 * plungeW;
+            arr[o] = dx * r; arr[o + 1] = dy * r; arr[o + 2] = z; arr[o + 3] = dx * (r + fr_l[i]); arr[o + 4] = dy * (r + fr_l[i]); arr[o + 5] = z;
+            for (let q = 0; q < 2; q++) { carr[o + q * 3] = c.r * k; carr[o + q * 3 + 1] = c.g * k; carr[o + q * 3 + 2] = c.b * k; } o += 6;
+          }
+          fragsMesh.geometry.setDrawRange(0, o / 3); fragsMesh.geometry.attributes.position.needsUpdate = true; fragsMesh.geometry.attributes.color.needsUpdate = true; fragsMesh.material.opacity = 1;
+        }
+        if (stage === 'lattice-green') {
+          const gArr = ghosts.instanceMatrix.array;
+          for (let i = 0; i < ROOM_LATTICE.ghosts; i++) {
+            const ang = i * 1.7 + state.t * 0.15, r = 60 + 40 * Math.sin(i * 2.1 + state.t * 0.1), z = camZ - 140 - i * 90 - 30 * Math.sin(state.t * 0.3 + i);
+            _o.position.set(r * Math.cos(ang), r * Math.sin(ang), z); _o.rotation.set(0.3 * Math.sin(state.t * 0.4 + i), 0, 0.5 + 0.4 * i); _o.scale.set(1, 1, 1); _o.updateMatrix(); _o.matrix.toArray(gArr, i * 16);
+          }
+          ghosts.count = ROOM_LATTICE.ghosts; ghosts.instanceMatrix.needsUpdate = true; ghostMat.opacity = ROOM_LATTICE.ghostOp * plungeW;
+        }
+      }
+
       // prism tunnel
       const prismOn = stage === 'prism' || stage === 'prism-tri';
       prismLines.visible = prismOn; prismFill.visible = prismOn;
@@ -2014,14 +2270,16 @@ export function makeTunnel(THREE, opts = {}) {
     if (state.warm > 0) {
       // warm-up: draw every plunge stage mesh (and the glyph rain) with nothing in it, so shader compiles and buffer uploads happen here, not on a cut
       state.warm--;
-      const empties = [latticeMesh, ringsMesh, stairsMesh, prismLines, ...plungeSets.map(p => p.mesh)];
+      const empties = [latticeMesh, ringsMesh, stairsMesh, prismLines, fragsMesh, knot, ...plungeSets.map(p => p.mesh)];
+      for (const im of [halo, ghosts, ...rooms.flatMap(r => [r.beams, r.caps, r.haze])]) if (!im.visible) { im.visible = true; im.userData.warm = true; if (im.userData.count0 == null) im.userData.count0 = im.count; im.count = 0; }   // capture the real count once: the room block re-hides idle rooms every frame
+      if (!vortexCore.visible) { vortexCore.visible = true; vortexCore.userData.warm = true; vortexCore.scale.set(0, 0, 0); }
       for (const mm of empties) if (!mm.visible) { mm.visible = true; mm.userData.warm = true; mm.geometry.setDrawRange(0, 0); }
       if (!prismFill.visible) { prismFill.visible = true; prismFill.userData.warm = true; prismFill.count = 0; }
       if (!glyphs.visible) { glyphs.visible = true; glyphs.userData.warm = true; glyphs.count = 0; }
       plungeGroup.visible = true;
     } else if (state.warm === 0) {
       state.warm = -1;
-      for (const mm of [latticeMesh, ringsMesh, stairsMesh, prismLines, prismFill, glyphs, ...plungeSets.map(p => p.mesh)]) if (mm.userData.warm) { mm.userData.warm = false; mm.visible = false; if (mm.geometry.setDrawRange) mm.geometry.setDrawRange(0, Infinity); }
+      for (const mm of [latticeMesh, ringsMesh, stairsMesh, prismLines, prismFill, glyphs, fragsMesh, knot, halo, ghosts, vortexCore, ...rooms.flatMap(r => [r.beams, r.caps, r.haze]), ...plungeSets.map(p => p.mesh)]) if (mm.userData.warm) { mm.userData.warm = false; mm.visible = false; if (mm.userData.count0 != null) { mm.count = mm.userData.count0; mm.userData.count0 = null; } if (mm.geometry && mm.geometry.setDrawRange) mm.geometry.setDrawRange(0, Infinity); }
     }
 
   }
@@ -2118,6 +2376,10 @@ export function makeTunnel(THREE, opts = {}) {
     group.traverse(o => { if (o.isInstancedMesh) o.dispose(); });
   }
 
-  return {group, update, dispose, kick: strength => kick(strength), setMirror, setLook, nextPattern, setPattern, setDim, setBeatMorph, setBend, curve, tangent, setMemories, deal, impact, landingY, plungeStage, setPlane, setLandingPoint, matrixExit, get fogColor() { return looks.bliss.w > 0.5 ? tmpFog.setHex(BLISS.fogColor) : null; }, get inverse() { return looks.inverse.w; },
+  const api = {group, update, dispose, kick: strength => kick(strength), setMirror, setLook, release, nextPattern, setPattern, setDim, setBeatMorph, setBend, curve, tangent, setMemories, deal, impact, landingY, plungeStage, setPlane, setLandingPoint, matrixExit, get fogColor() { return looks.bliss.w > 0.5 ? tmpFog.setHex(BLISS.fogColor) : null; }, get inverse() { return looks.inverse.w; },
     runLog: () => runLog.map(r => ({pattern: patterns[r.pattern].name, pair: PALETTE_NAMES[PAT_PAIRS[r.pair][0]] + '/' + PALETTE_NAMES[PAT_PAIRS[r.pair][1]]})), patterns: () => patterns.map(p => ({name: p.name, segments: p.segments})), looks: () => Object.fromEntries(LOOK_NAMES.map(n => [n, looks[n].w])), stats, constants: {HALF_W, CELL, FOG_DENSITY, OCT_APOTHEM, SOLID_BAND, MIRROR_LEN}};
+  api.debugLog = () => ({calls: callLog.slice(-40), looks: api.looks(), stage: plunge.stage, lookCtl: {...lookCtl}, warm: state.warm,
+    rooms: rooms.map(r => ({beams: {vis: r.beams.visible, count: r.beams.count, op: r.beams.material.opacity, z: +r.beams.position.z.toFixed(0), c0: r.beams.userData.count0}, caps: {vis: r.caps.visible, count: r.caps.count}})), light: roomLight.intensity, groupVis: plungeGroup.visible});
+  instances.push(api);
+  return api;
 }
